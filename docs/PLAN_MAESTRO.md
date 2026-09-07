@@ -4,7 +4,7 @@
 > Repo: `~/Documents/Proyectos/Vex-Command` · producto: Founder Console (`ops.vexraptor.com`).
 > **No** es el Dashboard MSSP (`app.vexraptor.com`). Nunca en el nav del tenant.
 
-**Estado:** F1 código listo · **siguiente:** desplegar `C-01` (DNS `ops.`) en tu droplet  
+**Estado:** F2 en curso (C-10 hecho) · **siguiente:** C-11 Goals editables · deploy C-01 espera dominio Syvrax  
 **Regla:** un ID por chat. No saltar a F5 antes de F3 (cohorts sin billing son teatro).  
 **HECHO:** checkbox `[x]` + 1 línea de evidencia (URL, test o comando). Si falta, sigue `EN CURSO`.
 
@@ -40,7 +40,7 @@ Sin Stripe. El panel muestra orgs/scans/ops reales o vacío honesto, no MRR inve
 
 | ID | Tarea | Gate de cierre |
 |---|---|---|
-| C-10 | Pipeline persistido (`founder.deal` + activity) | Crear/mover deal sobrevive restart |
+| C-10 | Pipeline persistido (`founder.deal` + activity) | [x] Crear/mover deal sobrevive restart · `test_pipeline` + `test_f1_pipeline` |
 | C-11 | Goals / OKRs editables (`founder.goal` / `okr`) | PUT `/goals` se refleja en UI |
 | C-12 | Alertas Slack (pago n/a aún; cola ARQ, health, Gemini 24h si existe) | Mensaje real en canal privado |
 | C-13 | Support ligero o enlace Linear — no inventar ticketing enterprise | Threads o deep-link funcionando |

@@ -11,6 +11,7 @@ from app import kpis
 from app.auth import Operator
 from app.config import settings
 from app.db import session_factory
+from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary, row_to_deal
 from app.seed import build_world
 from app.providers.mock import MockProvider
 
@@ -236,7 +237,94 @@ class SqlProvider:
         return {"body": body, "actor_email": operator.email}
 
     async def deals(self) -> dict[str, Any]:
-        return await self._fallback.deals()
+        factory = session_factory()
+        async with factory() as session:
+            r = await session.execute(
+                text(
+                    "SELECT id, name, org_id, stage, acv_usd, probability, source, region, "
+                    "close_date, owner_email FROM founder.deal ORDER BY updated_at DESC, id DESC"
+                )
+            )
+            items = [row_to_deal(row) for row in r.fetchall()]
+        return deals_summary(items)
+
+    async def create_deal(self, body: dict[str, Any], operator: Operator) -> dict[str, Any]:
+        name = (body.get("name") or "").strip()
+        if not name:
+            raise ValueError("name required")
+        stage = body.get("stage") or "lead"
+        if stage not in DEAL_STAGES:
+            raise ValueError("invalid stage")
+        acv = float(body.get("acv_usd") or 0)
+        source = (body.get("source") or "inbound").strip() or "inbound"
+        org_id = body.get("org_id")
+        probability = int(body.get("probability") or DEFAULT_PROBABILITY.get(stage, 10))
+        region = body.get("region")
+        factory = session_factory()
+        async with factory() as session:
+            r = await session.execute(
+                text(
+                    "INSERT INTO founder.deal "
+                    "(name, org_id, stage, acv_usd, probability, source, region, owner_email) "
+                    "VALUES (:name, :org_id, :stage, :acv_usd, :probability, :source, :region, :owner_email) "
+                    "RETURNING id, name, org_id, stage, acv_usd, probability, source, region, close_date, owner_email"
+                ),
+                {
+                    "name": name,
+                    "org_id": int(org_id) if org_id is not None else None,
+                    "stage": stage,
+                    "acv_usd": acv,
+                    "probability": probability,
+                    "source": source,
+                    "region": region,
+                    "owner_email": operator.email,
+                },
+            )
+            row = r.one()
+            await session.execute(
+                text(
+                    "INSERT INTO founder.deal_activity (deal_id, kind, body, actor_email) "
+                    "VALUES (:deal_id, 'note', :body, :actor_email)"
+                ),
+                {
+                    "deal_id": row.id,
+                    "body": f"Deal created in {stage}",
+                    "actor_email": operator.email,
+                },
+            )
+            await session.commit()
+        return row_to_deal(row)
+
+    async def update_deal_stage(self, deal_id: int, stage: str, operator: Operator) -> dict[str, Any]:
+        if stage not in DEAL_STAGES:
+            raise ValueError("invalid stage")
+        probability = DEFAULT_PROBABILITY.get(stage, 10)
+        factory = session_factory()
+        async with factory() as session:
+            r = await session.execute(
+                text(
+                    "UPDATE founder.deal SET stage = :stage, probability = :probability, updated_at = now() "
+                    "WHERE id = :deal_id "
+                    "RETURNING id, name, org_id, stage, acv_usd, probability, source, region, close_date, owner_email"
+                ),
+                {"deal_id": deal_id, "stage": stage, "probability": probability},
+            )
+            row = r.one_or_none()
+            if row is None:
+                raise ValueError("deal not found")
+            await session.execute(
+                text(
+                    "INSERT INTO founder.deal_activity (deal_id, kind, body, actor_email) "
+                    "VALUES (:deal_id, 'followup', :body, :actor_email)"
+                ),
+                {
+                    "deal_id": deal_id,
+                    "body": f"Stage → {stage}",
+                    "actor_email": operator.email,
+                },
+            )
+            await session.commit()
+        return row_to_deal(row)
 
     async def usage(self) -> dict[str, Any]:
         factory = session_factory()

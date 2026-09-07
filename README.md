@@ -24,7 +24,26 @@ make api
 
 Sin Raptor adjunto: `FOUNDER_DEV_STUB=true` crea 3 orgs de prueba en PG.
 
-Con Raptor prod: apunta `DATABASE_URL` a la **replica** de lectura (mismo host, rol `vex_founder_ro`).
+### Datos reales desde Raptor local (Docker)
+
+Con `vex-raptor-postgres` corriendo en tu Mac:
+
+```bash
+cd ~/Documents/Proyectos/Proyecto\ Vex-Raptor && docker compose up -d postgres
+cd ~/Documents/Proyectos/Vex-Command
+make db-sync-raptor   # copia organizations, users, scan_history → :5433
+make api-sql          # terminal A
+make web              # terminal B → http://localhost:5174
+```
+
+`make api-sql` usa `FOUNDER_DEV_STUB=false` y health de Raptor en `:8000`.
+Auth sigue en `mock` en dev — no necesitas JWT para explorar.
+
+### Pipeline (C-10)
+
+En **04 Pipeline**: crea deals y muévelos entre stages (← → / Lost). Con `make api-sql` los deals persisten en `founder.deal` + actividad en `deal_activity`.
+
+Con Raptor prod: apunta `DATABASE_URL` a la **replica** de lectura (rol `vex_founder_ro`).
 
 ## Auth JWT (ops.)
 
@@ -38,8 +57,8 @@ export VITE_FOUNDER_TOKEN=<jwt>   # frontend dev
 ## Tests
 
 ```bash
-make test       # mock + auth (12 tests)
-make test-sql   # F1 integration (requiere Docker + postgres)
+make test       # mock + auth + pipeline (14 tests)
+make test-sql   # F1 integration + pipeline persist (requiere Docker + postgres)
 ```
 
 ## Deploy

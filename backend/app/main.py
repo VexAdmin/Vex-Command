@@ -123,6 +123,32 @@ async def deals(request: Request, operator: OperatorDep):
     return await _provider(request).deals()
 
 
+@app.post("/api/founder/v1/pipeline/deals")
+async def create_deal(request: Request, operator: OperatorDep):
+    await record(request, operator, "pipeline.create")
+    body = await request.json()
+    try:
+        deal = await _provider(request).create_deal(body, operator)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"ok": True, "deal": deal}
+
+
+@app.patch("/api/founder/v1/pipeline/deals/{deal_id}")
+async def update_deal(deal_id: int, request: Request, operator: OperatorDep):
+    await record(request, operator, "pipeline.update", deal_id)
+    body = await request.json()
+    stage = (body.get("stage") or "").strip()
+    if not stage:
+        raise HTTPException(400, "stage required")
+    try:
+        deal = await _provider(request).update_deal_stage(deal_id, stage, operator)
+    except ValueError as exc:
+        msg = str(exc)
+        raise HTTPException(404 if "not found" in msg else 400, msg)
+    return {"ok": True, "deal": deal}
+
+
 @app.get("/api/founder/v1/usage/summary")
 async def usage(request: Request, operator: OperatorDep):
     await record(request, operator, "usage.read")

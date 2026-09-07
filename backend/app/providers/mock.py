@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import date, timedelta
 from typing import Any, Protocol
 
-from app import kpis
 from app.auth import Operator
-from app.seed import World, build_world, deal_dict, org_dict
+from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary
+from app.seed import Deal, World, build_world, deal_dict, org_dict
 
 
 class FounderProvider(Protocol):
@@ -20,6 +20,8 @@ class FounderProvider(Protocol):
     async def customer(self, org_id: int) -> dict[str, Any] | None: ...
     async def add_note(self, org_id: int, body: str, operator: Operator) -> dict[str, Any]: ...
     async def deals(self) -> dict[str, Any]: ...
+    async def create_deal(self, body: dict[str, Any], operator: Operator) -> dict[str, Any]: ...
+    async def update_deal_stage(self, deal_id: int, stage: str, operator: Operator) -> dict[str, Any]: ...
     async def usage(self) -> dict[str, Any]: ...
     async def economics(self) -> dict[str, Any]: ...
     async def retention(self) -> dict[str, Any]: ...
@@ -102,18 +104,44 @@ class MockProvider:
 
     async def deals(self) -> dict[str, Any]:
         items = [deal_dict(d) for d in self._world.deals]
-        pipeline = sum(d.acv_usd for d in self._world.deals if d.stage not in ("won", "lost"))
-        weighted = sum(d.acv_usd * d.probability / 100 for d in self._world.deals if d.stage not in ("won", "lost"))
-        won = sum(1 for d in self._world.deals if d.stage == "won")
-        closed = sum(1 for d in self._world.deals if d.stage in ("won", "lost"))
         goal = self._world.goals["net_new"]["target"]
-        return {
-            "items": items,
-            "pipeline": pipeline,
-            "weighted": weighted,
-            "coverage": (weighted / goal) if goal else 0,
-            "win_rate": (won / closed) if closed else 0,
-        }
+        return deals_summary(items, goal)
+
+    async def create_deal(self, body: dict[str, Any], operator: Operator) -> dict[str, Any]:
+        name = (body.get("name") or "").strip()
+        if not name:
+            raise ValueError("name required")
+        stage = body.get("stage") or "lead"
+        if stage not in DEAL_STAGES:
+            raise ValueError("invalid stage")
+        acv = float(body.get("acv_usd") or 0)
+        source = (body.get("source") or "inbound").strip() or "inbound"
+        org_id = body.get("org_id")
+        new_id = max((d.id for d in self._world.deals), default=0) + 1
+        deal = Deal(
+            id=new_id,
+            name=name,
+            org_id=int(org_id) if org_id is not None else None,
+            stage=stage,  # type: ignore[arg-type]
+            acv_usd=acv,
+            probability=int(body.get("probability") or DEFAULT_PROBABILITY.get(stage, 10)),
+            source=source,
+            region=(body.get("region") or "—"),
+            close_date=(date.today() + timedelta(days=30)).isoformat(),
+            owner_email=operator.email,
+        )
+        self._world.deals.append(deal)
+        return deal_dict(deal)
+
+    async def update_deal_stage(self, deal_id: int, stage: str, operator: Operator) -> dict[str, Any]:
+        if stage not in DEAL_STAGES:
+            raise ValueError("invalid stage")
+        deal = next((d for d in self._world.deals if d.id == deal_id), None)
+        if not deal:
+            raise ValueError("deal not found")
+        deal.stage = stage  # type: ignore[assignment]
+        deal.probability = DEFAULT_PROBABILITY.get(stage, deal.probability)
+        return deal_dict(deal)
 
     async def usage(self) -> dict[str, Any]:
         return self._world.usage
