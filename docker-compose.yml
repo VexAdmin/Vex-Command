@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vex_founder
+      POSTGRES_USER: vex_founder
+      POSTGRES_PASSWORD: vex_founder_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - founder_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vex_founder"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+  vex-founder:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.vex-founder
+    ports:
+      - "8081:8081"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 8081
+      CONSOLE_ORIGIN: http://localhost:8081
+      FOUNDER_AUTH_MODE: mock
+      DATA_SOURCE: sql
+      DATABASE_URL: postgresql://vex_founder:vex_founder_dev@postgres:5432/vex_founder
+      FOUNDER_DEV_STUB: "true"
+      SERVE_STATIC: "true"
+      STATIC_DIR: static
+      RAPTOR_HEALTH_URL: http://host.docker.internal:8080/health
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web-dev:
+    image: node:22-alpine
+    profiles: ["dev"]
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5174"
+    ports:
+      - "5174:5174"
+    volumes:
+      - ./frontend:/app
+      - web_nm:/app/node_modules
+    environment:
+      VITE_API_BASE: http://localhost:8081
+
+  api-dev:
+    build: ./backend
+    profiles: ["dev"]
+    ports:
+      - "8081:8081"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 8081
+      CONSOLE_ORIGIN: http://localhost:5174
+      FOUNDER_AUTH_MODE: mock
+      DATA_SOURCE: sql
+      DATABASE_URL: postgresql://vex_founder:vex_founder_dev@postgres:5432/vex_founder
+      FOUNDER_DEV_STUB: "true"
+    volumes:
+      - ./backend:/app
+      - ./sql:/sql
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  founder_pg:
+  web_nm:
