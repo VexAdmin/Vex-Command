@@ -79,6 +79,23 @@ async def cohorts(request: Request, operator: OperatorDep):
     return await _provider(request).cohorts()
 
 
+@app.get("/api/founder/v1/revenue/manual")
+async def manual_revenue(request: Request, operator: OperatorDep):
+    await record(request, operator, "revenue.manual.list")
+    return await _provider(request).manual_revenue()
+
+
+@app.post("/api/founder/v1/revenue/manual")
+async def add_manual_revenue(request: Request, operator: OperatorDep):
+    await record(request, operator, "revenue.manual.create")
+    body = await request.json()
+    try:
+        entry = await _provider(request).add_manual_revenue(body, operator)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"ok": True, "entry": entry}
+
+
 @app.get("/api/founder/v1/customers")
 async def customers(
     request: Request,

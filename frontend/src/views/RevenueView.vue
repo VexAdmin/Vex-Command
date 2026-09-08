@@ -49,6 +49,26 @@
         </tbody>
       </table>
     </div>
+    <div class="card" style="margin-top:14px">
+      <h3>Manual overrides</h3>
+      <div v-for="e in manual" :key="e.id" class="list-row">
+        <span>{{ e.period_month }} · {{ e.channel }} · {{ e.reason }}</span>
+        <b>{{ money(e.mrr_usd) }}</b>
+      </div>
+      <div class="filters" style="margin-top:10px;padding:0">
+        <input v-model="form.period_month" type="month" />
+        <input v-model.number="form.mrr_usd" type="number" placeholder="MRR neto USD" />
+        <select v-model="form.channel">
+          <option value="direct">direct</option>
+          <option value="partner">partner</option>
+        </select>
+        <input v-model="form.reason" type="text" placeholder="Motivo (ej: Tyndall — Cliente X — neto post 50/50)" style="min-width:260px" />
+        <button class="btn primary" type="button" :disabled="saving" @click="addManual">
+          {{ saving ? '…' : 'Agregar' }}
+        </button>
+      </div>
+      <p v-if="error" class="lede" style="color:var(--crit)">{{ error }}</p>
+    </div>
   </div>
 </template>
 
@@ -69,12 +89,49 @@ interface Waterfall {
   billing: { open_invoices: number; past_due: number; dunning: number; refunds_30d: number }
 }
 
+interface ManualEntry {
+  id: number
+  org_id: number | null
+  period_month: string
+  mrr_usd: number
+  channel: string
+  reason: string
+  actor_email: string
+}
+
 const wf = ref<Waterfall | null>(null)
 const cohorts = ref<{ cohort: string; m0: number; m1: number | null; m2: number | null; m3: number | null; m6: number | null }[]>([])
 const waterfallBars = computed(() => {
   if (!wf.value) return []
   return [wf.value.start, wf.value.new, wf.value.expansion, -wf.value.contraction, -wf.value.churn, wf.value.end].map((v) => v / 1000)
 })
+
+const manual = ref<ManualEntry[]>([])
+const form = ref({ period_month: '', mrr_usd: 0, channel: 'direct', reason: '' })
+const saving = ref(false)
+const error = ref('')
+
+async function loadManual() {
+  const r = await api<{ items: ManualEntry[] }>('/revenue/manual')
+  manual.value = r.items
+}
+
+async function addManual() {
+  saving.value = true
+  error.value = ''
+  try {
+    await api('/revenue/manual', {
+      method: 'POST',
+      body: JSON.stringify({ ...form.value, period_month: `${form.value.period_month}-01` }),
+    })
+    form.value = { period_month: '', mrr_usd: 0, channel: 'direct', reason: '' }
+    await loadManual()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Error al guardar'
+  } finally {
+    saving.value = false
+  }
+}
 
 function cell(v: number | null) {
   return v == null ? '—' : pct(v, 0)
@@ -84,5 +141,6 @@ onMounted(async () => {
   wf.value = await api<Waterfall>('/revenue/waterfall')
   const r = await api<{ cohorts: typeof cohorts.value }>('/revenue/cohorts')
   cohorts.value = r.cohorts
+  await loadManual()
 })
 </script>

@@ -15,6 +15,8 @@ class FounderProvider(Protocol):
     async def overview(self) -> dict[str, Any]: ...
     async def waterfall(self) -> dict[str, Any]: ...
     async def cohorts(self) -> dict[str, Any]: ...
+    async def manual_revenue(self) -> dict[str, Any]: ...
+    async def add_manual_revenue(self, body: dict[str, Any], operator: Operator) -> dict[str, Any]: ...
     async def customers(
         self, q: str, plan: str, risk: str, sort: str, cursor: int, limit: int
     ) -> dict[str, Any]: ...
@@ -41,6 +43,7 @@ class MockProvider:
     def __init__(self, world: World) -> None:
         self._world = world
         self.dataset = world.dataset
+        self._manual_revenue: list[dict[str, Any]] = []
 
     async def overview(self) -> dict[str, Any]:
         return self._world.overview()
@@ -135,6 +138,35 @@ class MockProvider:
         )
         self._world.deals.append(deal)
         return deal_dict(deal)
+
+    async def manual_revenue(self) -> dict[str, Any]:
+        return {"items": list(reversed(self._manual_revenue))}
+
+    async def add_manual_revenue(self, body: dict[str, Any], operator: Operator) -> dict[str, Any]:
+        reason = (body.get("reason") or "").strip()
+        if not reason:
+            raise ValueError("reason required")
+        try:
+            mrr_usd = float(body.get("mrr_usd"))
+        except (TypeError, ValueError):
+            raise ValueError("mrr_usd must be a number")
+        period_month = (body.get("period_month") or "").strip()
+        if not period_month:
+            raise ValueError("period_month required")
+        channel = body.get("channel") or "direct"
+        if channel not in ("direct", "partner"):
+            raise ValueError("channel must be 'direct' or 'partner'")
+        entry = {
+            "id": len(self._manual_revenue) + 1,
+            "org_id": body.get("org_id"),
+            "period_month": period_month,
+            "mrr_usd": mrr_usd,
+            "channel": channel,
+            "reason": reason,
+            "actor_email": operator.email,
+        }
+        self._manual_revenue.append(entry)
+        return entry
 
     async def update_deal_stage(self, deal_id: int, stage: str, operator: Operator) -> dict[str, Any]:
         if stage not in DEAL_STAGES:
