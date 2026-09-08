@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from typing import Any, Protocol
 
 from app.auth import Operator
+from app.config import settings
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary
 from app.seed import Deal, World, build_world, deal_dict, org_dict
 
@@ -219,7 +220,7 @@ class MockProvider:
             "integrations": {
                 "stripe": "connected" if live else "manual_ledger",
                 "slack": "connected" if live else "optional",
-                "linear": "optional",
+                "linear": settings.linear_workspace_url or "optional",
                 "clickhouse": "phase_2",
             },
             "operators": [{"email": "edu@vexraptor.com", "role": "founder"}],

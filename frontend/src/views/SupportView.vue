@@ -6,6 +6,10 @@
         <h1>Support & Voice of Customer</h1>
         <p class="lede">Inbox ligero + NPS. El ticketing pesado se queda en Linear/email.</p>
       </div>
+      <a v-if="linearUrl" :href="linearUrl" target="_blank" rel="noopener" class="btn primary">
+        Abrir en Linear ↗
+      </a>
+      <span v-else class="tag warn">Linear sin configurar (LINEAR_WORKSPACE_URL)</span>
     </div>
     <div class="grid g-3">
       <div class="card"><h3>Open threads</h3><div class="kpi">{{ s.open }}</div></div>
@@ -34,16 +38,25 @@
 import { onMounted, ref } from 'vue'
 import { api } from '@/api/client'
 
-const s = ref<{
+type SupportPayload = {
   open: number
   median_first_reply_h: number
   nps: number | null
   nps_n: number
   tickets: { id: number; org_name: string; title: string; priority: string }[]
   themes: { name: string; mentions: number }[]
-} | null>(null)
+}
+
+const s = ref<SupportPayload | null>(null)
+const linearUrl = ref<string | null>(null)
 
 onMounted(async () => {
-  s.value = await api('/support')
+  const [support, settings] = await Promise.all([
+    api<SupportPayload>('/support'),
+    api<{ integrations: Record<string, string> }>('/settings'),
+  ])
+  const linear = settings.integrations.linear
+  linearUrl.value = linear && linear.startsWith('http') ? linear : null
+  s.value = support
 })
 </script>

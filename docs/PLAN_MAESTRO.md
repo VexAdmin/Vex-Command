@@ -43,7 +43,7 @@ Sin Stripe. El panel muestra orgs/scans/ops reales o vacío honesto, no MRR inve
 | C-10 | Pipeline persistido (`founder.deal` + activity) | [x] Crear/mover deal sobrevive restart · `test_pipeline` + `test_f1_pipeline` |
 | C-11 | Goals / OKRs editables (`founder.goal` / `okr`) | [x] PUT `/goals` persiste mock + SQL · `test_goals` + `test_f1_goals` |
 | C-12 | Alertas Slack (pago n/a aún; cola ARQ, health, Gemini 24h si existe) | Mensaje real en canal privado |
-| C-13 | Support ligero o enlace Linear — no inventar ticketing enterprise | Threads o deep-link funcionando |
+| C-13 | Support ligero o enlace Linear — no inventar ticketing enterprise | [x] Deep-link Linear via `LINEAR_WORKSPACE_URL` · `test_settings` |
 
 ---
 
