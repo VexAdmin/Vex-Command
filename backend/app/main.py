@@ -179,6 +179,29 @@ async def goals(request: Request, operator: OperatorDep):
     return await _provider(request).goals()
 
 
+@app.put("/api/founder/v1/goals")
+async def update_goals(request: Request, operator: OperatorDep):
+    await record(request, operator, "goals.update")
+    body = await request.json()
+    kind = body.get("kind")
+    try:
+        target = float(body.get("target"))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "target must be a number")
+    try:
+        if kind == "okr":
+            okr_id = int(body.get("id"))
+            result = await _provider(request).update_okr(okr_id, target, operator)
+        elif kind == "net_new":
+            result = await _provider(request).update_net_new_goal(target, operator)
+        else:
+            raise HTTPException(400, "kind must be 'okr' or 'net_new'")
+    except ValueError as exc:
+        msg = str(exc)
+        raise HTTPException(404 if "not found" in msg else 400, msg)
+    return {"ok": True, "result": result}
+
+
 @app.get("/api/founder/v1/alerts")
 async def alerts(request: Request, operator: OperatorDep):
     await record(request, operator, "alerts.read")
