@@ -12,7 +12,10 @@
         <h3>Integrations</h3>
         <div v-for="(v, k) in s.integrations" :key="k" class="list-row">
           <span>{{ k }}</span>
-          <span class="tag" :class="v === 'connected' ? 'good' : 'warn'">{{ v }}</span>
+          <a v-if="String(v).startsWith('http')" :href="v" target="_blank" rel="noopener" class="tag good">
+            abrir ↗
+          </a>
+          <span v-else class="tag" :class="v === 'connected' ? 'good' : 'warn'">{{ v }}</span>
         </div>
       </div>
       <div class="card">

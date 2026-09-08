@@ -4,7 +4,7 @@
 > Repo: `~/Documents/Proyectos/Vex-Command` · producto: Founder Console (`ops.vexraptor.com`).
 > **No** es el Dashboard MSSP (`app.vexraptor.com`). Nunca en el nav del tenant.
 
-**Estado:** F2 en curso (C-11 hecho) · **siguiente:** C-12 alertas Slack · deploy C-01 espera dominio Syvrax  
+**Estado:** F2 en curso (C-10, C-11, C-13 hechos) · **siguiente:** C-12 alertas Slack (bloqueado — sin workspace de Slack todavía) · deploy C-01 espera dominio Syvrax  
 **Regla:** un ID por chat. No saltar a F5 antes de F3 (cohorts sin billing son teatro).  
 **HECHO:** checkbox `[x]` + 1 línea de evidencia (URL, test o comando). Si falta, sigue `EN CURSO`.
 
@@ -15,6 +15,9 @@
 | ID | Tarea | Estado |
 |---|---|---|
 | C-00 | App Vue + API FastAPI + seed 1.024 orgs + 11 módulos + schema SQL | [x] 2026-09-07 · `http://localhost:5174` |
+| H1 | Export CSV vía fetch+blob con header `Authorization` (antes: token en query param, URL/logs) | [x] 2026-09-08 · `client.ts` + `client.export.test.ts` (regresión) |
+| H2 | Sin passwords hardcodeadas en `sql/003_roles.sql` — roles `NOLOGIN`, password real en deploy | [x] 2026-09-08 · `deploy/apply-founder-roles.sh` |
+| H3 | `docker-compose.yml` sin servicio prod-like implícito — `APP_ENV: dev` explícito | [x] 2026-09-08 |
 
 ---
 
@@ -43,7 +46,7 @@ Sin Stripe. El panel muestra orgs/scans/ops reales o vacío honesto, no MRR inve
 | C-10 | Pipeline persistido (`founder.deal` + activity) | [x] Crear/mover deal sobrevive restart · `test_pipeline` + `test_f1_pipeline` |
 | C-11 | Goals / OKRs editables (`founder.goal` / `okr`) | [x] PUT `/goals` persiste mock + SQL · `test_goals` + `test_f1_goals` |
 | C-12 | Alertas Slack (pago n/a aún; cola ARQ, health, Gemini 24h si existe) | Mensaje real en canal privado |
-| C-13 | Support ligero o enlace Linear — no inventar ticketing enterprise | Threads o deep-link funcionando |
+| C-13 | Support ligero o enlace Linear — no inventar ticketing enterprise | [x] Deep-link Linear via `LINEAR_WORKSPACE_URL` · `test_settings` |
 
 ---
 

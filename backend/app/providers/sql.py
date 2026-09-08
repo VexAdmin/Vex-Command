@@ -509,7 +509,7 @@ class SqlProvider:
             "integrations": {
                 "stripe": "manual_ledger",
                 "slack": "optional",
-                "linear": "optional",
+                "linear": settings.linear_workspace_url or "optional",
                 "clickhouse": "phase_2",
             },
             "operators": [{"email": e, "role": "founder"} for e in sorted(settings.operator_emails)],
