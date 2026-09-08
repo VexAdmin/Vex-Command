@@ -107,8 +107,12 @@ function isOn(to: string): boolean {
   return route.path === to || route.path.startsWith(`${to}/`)
 }
 
-function exportCsv() {
-  exportAccounting()
+async function exportCsv() {
+  try {
+    await exportAccounting()
+  } catch {
+    brief.value = 'Export CSV falló — ¿JWT configurado?'
+  }
 }
 
 async function runBrief() {
