@@ -404,16 +404,82 @@ class SqlProvider:
         }
 
     async def goals(self) -> dict[str, Any]:
+        factory = session_factory()
+        async with factory() as session:
+            okr_rows = (
+                await session.execute(
+                    text(
+                        "SELECT id, quarter, title, target, current, unit FROM founder.okr ORDER BY id"
+                    )
+                )
+            ).fetchall()
+            goal_row = (
+                await session.execute(
+                    text(
+                        "SELECT target, current FROM founder.goal WHERE kpi = 'net_new_mrr' "
+                        "ORDER BY id LIMIT 1"
+                    )
+                )
+            ).one_or_none()
+        okrs = [
+            {
+                "id": r.id,
+                "title": r.title,
+                "target": float(r.target),
+                "current": float(r.current),
+                "unit": r.unit,
+            }
+            for r in okr_rows
+        ]
+        net_new = (
+            {"current": float(goal_row.current), "target": float(goal_row.target)}
+            if goal_row
+            else {"current": 0.0, "target": 25000.0}
+        )
         return {
-            "quarter": "Q3 2026",
-            "okrs": [
-                {"title": "First 10 paying logos", "current": 0, "target": 10, "unit": "count"},
-                {"title": "Stripe live (PRICE-01c)", "current": 0, "target": 1, "unit": "count"},
-                {"title": "COGS Gemini (PRICE-00)", "current": 0, "target": 1, "unit": "count"},
-            ],
-            "net_new": {"current": 0, "target": 25000},
+            "quarter": okr_rows[0].quarter if okr_rows else "Q3 2026",
+            "okrs": okrs,
+            "net_new": net_new,
             "rules": self._fallback._world.goals["rules"],
         }
+
+    async def update_okr(self, okr_id: int, target: float, operator: Operator) -> dict[str, Any]:
+        factory = session_factory()
+        async with factory() as session:
+            r = await session.execute(
+                text(
+                    "UPDATE founder.okr SET target = :target WHERE id = :id "
+                    "RETURNING id, title, target, current, unit"
+                ),
+                {"id": okr_id, "target": target},
+            )
+            row = r.one_or_none()
+            if row is None:
+                raise ValueError("okr not found")
+            await session.commit()
+        return {
+            "id": row.id,
+            "title": row.title,
+            "target": float(row.target),
+            "current": float(row.current),
+            "unit": row.unit,
+        }
+
+    async def update_net_new_goal(self, target: float, operator: Operator) -> dict[str, Any]:
+        factory = session_factory()
+        async with factory() as session:
+            r = await session.execute(
+                text(
+                    "UPDATE founder.goal SET target = :target, updated_at = now() "
+                    "WHERE kpi = 'net_new_mrr' RETURNING target, current"
+                ),
+                {"target": target},
+            )
+            row = r.one_or_none()
+            if row is None:
+                raise ValueError("goal not found")
+            await session.commit()
+        return {"current": float(row.current), "target": float(row.target)}
 
     async def alerts(self) -> dict[str, Any]:
         o = await self.overview()

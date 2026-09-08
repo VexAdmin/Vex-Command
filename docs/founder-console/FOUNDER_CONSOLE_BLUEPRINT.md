@@ -118,6 +118,8 @@ Opcional y **fail-soft** — no bloquea el panel:
 
 Modelo: Gemini (ya en stack) con prompt aislado, **sin** findings de clientes en el contexto (solo agregados y metadatos de cuenta).
 
+> **Decisión (8-sep-2026):** no dejar la IA hardcodeada a Gemini. El motor debe ser agnóstico de proveedor (capa de abstracción común), tanto para la IA de esta capa founder como para el motor ofensivo de Raptor — Edu y los clientes deben poder elegir qué proveedor usar (BYOK a evaluar para Enterprise/MSSP). Pendiente: diseño de la interfaz de proveedor, almacenamiento seguro de keys de terceros, y ajuste de `PRICE-00`/`gross_margin` para reflejar coste por proveedor y por org en vez de asumir Gemini fijo.
+
 ---
 
 ## 3. Información arquitectura (vista lógica)

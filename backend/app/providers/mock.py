@@ -27,6 +27,8 @@ class FounderProvider(Protocol):
     async def retention(self) -> dict[str, Any]: ...
     async def ops(self) -> dict[str, Any]: ...
     async def goals(self) -> dict[str, Any]: ...
+    async def update_okr(self, okr_id: int, target: float, operator: Operator) -> dict[str, Any]: ...
+    async def update_net_new_goal(self, target: float, operator: Operator) -> dict[str, Any]: ...
     async def alerts(self) -> dict[str, Any]: ...
     async def support(self) -> dict[str, Any]: ...
     async def settings_view(self) -> dict[str, Any]: ...
@@ -173,7 +175,19 @@ class MockProvider:
 
     async def goals(self) -> dict[str, Any]:
         data = dict(self._world.goals)
+        data["okrs"] = [{**okr, "id": i + 1} for i, okr in enumerate(self._world.goals["okrs"])]
         return data
+
+    async def update_okr(self, okr_id: int, target: float, operator: Operator) -> dict[str, Any]:
+        okrs = self._world.goals["okrs"]
+        if not 1 <= okr_id <= len(okrs):
+            raise ValueError("okr not found")
+        okrs[okr_id - 1]["target"] = target
+        return {**okrs[okr_id - 1], "id": okr_id}
+
+    async def update_net_new_goal(self, target: float, operator: Operator) -> dict[str, Any]:
+        self._world.goals["net_new"]["target"] = target
+        return dict(self._world.goals["net_new"])
 
     async def alerts(self) -> dict[str, Any]:
         return {"items": self._world.alerts, "rules": self._world.goals["rules"]}

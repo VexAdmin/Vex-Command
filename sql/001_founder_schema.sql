@@ -75,6 +75,18 @@ CREATE TABLE IF NOT EXISTS founder.okr (
     unit            TEXT NOT NULL DEFAULT 'usd'
 );
 
+INSERT INTO founder.okr (quarter, title, target, current, unit)
+SELECT * FROM (VALUES
+    ('Q3 2026', 'First 10 paying logos', 10::numeric, 0::numeric, 'count'),
+    ('Q3 2026', 'Stripe live (PRICE-01c)', 1::numeric, 0::numeric, 'count'),
+    ('Q3 2026', 'COGS Gemini (PRICE-00)', 1::numeric, 0::numeric, 'count')
+) AS v(quarter, title, target, current, unit)
+WHERE NOT EXISTS (SELECT 1 FROM founder.okr);
+
+INSERT INTO founder.goal (period, kpi, target, current, unit)
+SELECT 'Q3 2026', 'net_new_mrr', 25000, 0, 'usd'
+WHERE NOT EXISTS (SELECT 1 FROM founder.goal WHERE kpi = 'net_new_mrr');
+
 CREATE TABLE IF NOT EXISTS founder.alert_rule (
     id              BIGSERIAL PRIMARY KEY,
     name            TEXT NOT NULL,

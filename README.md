@@ -57,8 +57,8 @@ export VITE_FOUNDER_TOKEN=<jwt>   # frontend dev
 ## Tests
 
 ```bash
-make test       # mock + auth + pipeline (14 tests)
-make test-sql   # F1 integration + pipeline persist (requiere Docker + postgres)
+make test       # mock + auth + pipeline + goals (17 tests)
+make test-sql   # F1 integration + pipeline + goals persist (requiere Docker + postgres)
 ```
 
 ## Deploy
