@@ -4,7 +4,7 @@
 > Repo: `~/Documents/Proyectos/Vex-Command` · producto: Founder Console (`ops.vexraptor.com`).
 > **No** es el Dashboard MSSP (`app.vexraptor.com`). Nunca en el nav del tenant.
 
-**Estado:** F2 en curso (C-10, C-11, C-13 hechos) · **siguiente:** C-12 alertas Slack (bloqueado — sin workspace de Slack todavía) · deploy C-01 espera dominio Syvrax  
+**Estado:** F2 solo falta C-12 (Slack, bloqueado — sin workspace todavía) · F3 arrancado con C-23 (manual revenue) hecho, resto **en pausa** — precios de planes (Essential/Professional/Enterprise/MSSP) todavía sin definir, C-20 no puede arrancar sin eso · deploy C-01 espera dominio Syvrax  
 **Regla:** un ID por chat. No saltar a F5 antes de F3 (cohorts sin billing son teatro).  
 **HECHO:** checkbox `[x]` + 1 línea de evidencia (URL, test o comando). Si falta, sigue `EN CURSO`.
 
@@ -52,7 +52,9 @@ Sin Stripe. El panel muestra orgs/scans/ops reales o vacío honesto, no MRR inve
 
 ## F3 — Dinero (bloquea F5)
 
-Gap en Raptor: **PRICE-01c**.
+Gap en Raptor: **PRICE-01c** (bloquea C-21). **En pausa desde 8-sep-2026: pricing de planes
+(Essential/Professional/Enterprise/MSSP) todavía no definido — bloquea C-20 y por extensión C-22.**
+C-23 no dependía de precios ni de Stripe, por eso pudo avanzar solo.
 
 | ID | Tarea | Gate de cierre |
 |---|---|---|
