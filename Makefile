@@ -31,10 +31,10 @@ dev:
 	@echo "SQL mode: export DATABASE_URL=postgresql://vex_founder:vex_founder_dev@127.0.0.1:5433/vex_founder"
 
 test:
-	.venv/bin/python -m pytest backend/tests/test_api.py backend/tests/test_kpis.py backend/tests/test_auth.py backend/tests/test_pipeline.py backend/tests/test_goals.py backend/tests/test_settings.py -q
+	.venv/bin/python -m pytest backend/tests/test_api.py backend/tests/test_kpis.py backend/tests/test_auth.py backend/tests/test_pipeline.py backend/tests/test_goals.py backend/tests/test_settings.py backend/tests/test_manual_revenue.py -q
 
 test-sql: db-up
-	.venv/bin/python -m pytest backend/tests/test_f1_sql.py backend/tests/test_f1_pipeline.py backend/tests/test_f1_goals.py -q
+	.venv/bin/python -m pytest backend/tests/test_f1_sql.py backend/tests/test_f1_pipeline.py backend/tests/test_f1_goals.py backend/tests/test_f1_manual_revenue.py -q
 
 test-all: db-up
 	.venv/bin/python -m pytest backend/tests -q

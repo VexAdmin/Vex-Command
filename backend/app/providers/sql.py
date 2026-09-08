@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
@@ -294,6 +294,78 @@ class SqlProvider:
             )
             await session.commit()
         return row_to_deal(row)
+
+    async def manual_revenue(self) -> dict[str, Any]:
+        factory = session_factory()
+        async with factory() as session:
+            r = await session.execute(
+                text(
+                    "SELECT id, org_id, period_month, mrr_usd, channel, reason, actor_email, created_at "
+                    "FROM founder.manual_revenue ORDER BY created_at DESC"
+                )
+            )
+            items = [
+                {
+                    "id": row.id,
+                    "org_id": row.org_id,
+                    "period_month": row.period_month.isoformat(),
+                    "mrr_usd": float(row.mrr_usd),
+                    "channel": row.channel,
+                    "reason": row.reason,
+                    "actor_email": row.actor_email,
+                }
+                for row in r.fetchall()
+            ]
+        return {"items": items}
+
+    async def add_manual_revenue(self, body: dict[str, Any], operator: Operator) -> dict[str, Any]:
+        reason = (body.get("reason") or "").strip()
+        if not reason:
+            raise ValueError("reason required")
+        try:
+            mrr_usd = float(body.get("mrr_usd"))
+        except (TypeError, ValueError):
+            raise ValueError("mrr_usd must be a number")
+        period_month = (body.get("period_month") or "").strip()
+        if not period_month:
+            raise ValueError("period_month required")
+        try:
+            period_date = date.fromisoformat(period_month)
+        except ValueError:
+            raise ValueError("period_month must be YYYY-MM-DD")
+        channel = body.get("channel") or "direct"
+        if channel not in ("direct", "partner"):
+            raise ValueError("channel must be 'direct' or 'partner'")
+        org_id = body.get("org_id")
+        factory = session_factory()
+        async with factory() as session:
+            r = await session.execute(
+                text(
+                    "INSERT INTO founder.manual_revenue "
+                    "(org_id, period_month, mrr_usd, channel, reason, actor_email) "
+                    "VALUES (:org_id, :period_month, :mrr_usd, :channel, :reason, :actor_email) "
+                    "RETURNING id, org_id, period_month, mrr_usd, channel, reason, actor_email"
+                ),
+                {
+                    "org_id": int(org_id) if org_id is not None else None,
+                    "period_month": period_date,
+                    "mrr_usd": mrr_usd,
+                    "channel": channel,
+                    "reason": reason,
+                    "actor_email": operator.email,
+                },
+            )
+            row = r.one()
+            await session.commit()
+        return {
+            "id": row.id,
+            "org_id": row.org_id,
+            "period_month": row.period_month.isoformat(),
+            "mrr_usd": float(row.mrr_usd),
+            "channel": row.channel,
+            "reason": row.reason,
+            "actor_email": row.actor_email,
+        }
 
     async def update_deal_stage(self, deal_id: int, stage: str, operator: Operator) -> dict[str, Any]:
         if stage not in DEAL_STAGES:

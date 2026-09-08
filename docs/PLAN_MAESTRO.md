@@ -59,7 +59,7 @@ Gap en Raptor: **PRICE-01c**.
 | C-20 | Stripe products/prices por plan Essential / Pro / Enterprise / MSSP | Prices IDs documentados en Settings |
 | C-21 | Webhooks firmados → `fact_billing_event` | Evento test en Stripe aparece en API |
 | C-22 | Revenue waterfall + MRR/ARR canónicos (`backend/app/kpis.py`) | MRR Command = MRR Stripe ± overrides |
-| C-23 | `founder.manual_revenue` para deals offline | Override auditado; no pisa Stripe |
+| C-23 | `founder.manual_revenue` para deals offline | [x] Override auditado + `channel` · `test_manual_revenue` + `test_f1_manual_revenue` |
 | C-24 | Export CSV contable | GET `/exports/accounting.csv` + fila audit |
 
 ---

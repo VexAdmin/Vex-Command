@@ -115,6 +115,10 @@ CREATE TABLE IF NOT EXISTS founder.manual_revenue (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE founder.manual_revenue
+    ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'direct'
+        CHECK (channel IN ('direct', 'partner'));
+
 CREATE TABLE IF NOT EXISTS founder.cogs_daily (
     day             DATE NOT NULL,
     org_id          BIGINT,
