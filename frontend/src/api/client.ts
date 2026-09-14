@@ -21,10 +21,20 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export function exportAccounting(): void {
+export async function exportAccounting(): Promise<void> {
   const base = import.meta.env.VITE_API_BASE || ''
-  const token = localStorage.getItem('founder_token') || import.meta.env.VITE_FOUNDER_TOKEN || ''
-  const url = new URL(`${base}/api/founder/v1/exports/accounting.csv`)
-  if (token) url.searchParams.set('token', token)
-  window.location.href = url.toString()
+  const res = await fetch(`${base}/api/founder/v1/exports/accounting.csv`, {
+    headers: authHeaders(),
+  })
+  if (res.status === 401 || res.status === 403) {
+    throw new Error(`auth:${res.status}`)
+  }
+  if (!res.ok) throw new Error(`${res.status} exports/accounting.csv`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = 'vex-founder-accounting.csv'
+  anchor.click()
+  URL.revokeObjectURL(url)
 }

@@ -1,13 +1,14 @@
--- DB roles for production. Run as superuser once.
+-- DB roles for production. Run as superuser once via deploy/apply-founder-roles.sh.
 -- vex_founder_ro: SELECT founder.* + aggregate views only (no findings table access).
+-- Passwords are NOT stored here — set at deploy time (H2).
 
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vex_founder_ro') THEN
-        CREATE ROLE vex_founder_ro LOGIN PASSWORD 'change_me_ro';
+        CREATE ROLE vex_founder_ro NOLOGIN;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vex_founder_rw') THEN
-        CREATE ROLE vex_founder_rw LOGIN PASSWORD 'change_me_rw';
+        CREATE ROLE vex_founder_rw NOLOGIN;
     END IF;
 END
 $$;

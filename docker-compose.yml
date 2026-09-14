@@ -1,3 +1,9 @@
+# =============================================================================
+# Vex Command — local dev stack (Postgres + Redis + optional dev profiles).
+# Production image: docker build -f deploy/Dockerfile.vex-founder -t vex-founder .
+# Do NOT expose docker-compose dev services to the internet (H3).
+# =============================================================================
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -20,26 +26,8 @@ services:
     ports:
       - "6380:6379"
 
-  vex-founder:
-    build:
-      context: .
-      dockerfile: deploy/Dockerfile.vex-founder
-    ports:
-      - "8081:8081"
-    environment:
-      API_HOST: 0.0.0.0
-      API_PORT: 8081
-      CONSOLE_ORIGIN: http://localhost:8081
-      FOUNDER_AUTH_MODE: mock
-      DATA_SOURCE: sql
-      DATABASE_URL: postgresql://vex_founder:vex_founder_dev@postgres:5432/vex_founder
-      FOUNDER_DEV_STUB: "true"
-      SERVE_STATIC: "true"
-      STATIC_DIR: static
-      RAPTOR_HEALTH_URL: http://host.docker.internal:8080/health
-    depends_on:
-      postgres:
-        condition: service_healthy
+  # vex-founder prod-like container removed from default compose (H3).
+  # Use: make api / make api-sql locally, or deploy/Dockerfile.vex-founder for ops.
 
   web-dev:
     image: node:22-alpine
@@ -60,6 +48,7 @@ services:
     ports:
       - "8081:8081"
     environment:
+      APP_ENV: dev
       API_HOST: 0.0.0.0
       API_PORT: 8081
       CONSOLE_ORIGIN: http://localhost:5174
