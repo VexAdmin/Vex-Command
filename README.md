@@ -61,11 +61,17 @@ make test       # mock + auth + pipeline + goals (17 tests)
 make test-sql   # F1 integration + pipeline + goals persist (requiere Docker + postgres)
 ```
 
-## Deploy
+## Deploy (producción)
+
+**Live:** `https://ops.vexraptor.com` (desde 2026-09-14).
+
+Runbook completo: [`docs/operations/DEPLOY_OPS_VEXRAPTOR.md`](docs/operations/DEPLOY_OPS_VEXRAPTOR.md)
 
 ```bash
 docker build -f deploy/Dockerfile.vex-founder -t vex-founder .
-# + nginx deploy/nginx-ops.vexraptor.com.conf.example en droplet
+cp deploy/vex-founder.env.example ~/vex-founder.env   # en droplet, chmod 600
+bash deploy/run-vex-founder.sh ~/vex-founder.env
+# + nginx deploy/nginx-ops.vexraptor.com.conf.example
 ```
 
-Siguiente: **C-01** — DNS `ops.vexraptor.com` (lo haces tú en Cloudflare).
+**Siguiente:** **C-01b** — pantalla de login en `ops` (usuario/contraseña, sesión httpOnly).

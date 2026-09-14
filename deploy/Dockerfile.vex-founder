@@ -22,5 +22,6 @@ ENV STATIC_DIR=static
 ENV FOUNDER_AUTH_MODE=jwt
 ENV DATA_SOURCE=sql
 ENV APP_ENV=prod
+ENV SQL_DIR=/app/sql
 EXPOSE 8081
 CMD ["sh", "-c", "uvicorn app.main:app --host ${API_HOST} --port ${API_PORT}"]

@@ -3,12 +3,12 @@ from __future__ import annotations
 import csv
 import io
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 
 from app.audit import list_recent, record
 from app.auth import Operator, require_operator
@@ -272,4 +272,24 @@ def robots():
 
 
 if settings.serve_static:
-    app.mount("/", StaticFiles(directory=settings.static_dir, html=True), name="spa")
+    _static_root = Path(settings.static_dir)
+
+    def _spa_file_response(path: str) -> FileResponse:
+        if path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        if path:
+            candidate = _static_root / path
+            if candidate.is_file():
+                return FileResponse(candidate)
+        index = _static_root / "index.html"
+        if not index.is_file():
+            raise HTTPException(status_code=404, detail="SPA not built")
+        return FileResponse(index)
+
+    @app.get("/", include_in_schema=False)
+    async def spa_index() -> FileResponse:
+        return _spa_file_response("")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_path(full_path: str) -> FileResponse:
+        return _spa_file_response(full_path)
