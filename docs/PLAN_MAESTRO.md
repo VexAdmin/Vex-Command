@@ -4,7 +4,7 @@
 > Repo: `~/Documents/Proyectos/Vex-Command` · producto: Founder Console (`ops.vexraptor.com`).
 > **No** es el Dashboard MSSP (`app.vexraptor.com`). Nunca en el nav del tenant.
 
-**Estado:** F2 solo falta C-12 (Slack, bloqueado — sin workspace todavía) · F3 arrancado con C-23 (manual revenue) hecho, resto **en pausa** — precios de planes (Essential/Professional/Enterprise/MSSP) todavía sin definir, C-20 no puede arrancar sin eso · **C-01/C-01b live** · **C-14 código en `dev` (PR #5, mergeado 2026-09-15), pendiente redeploy en el droplet** — ver "Reglas permanentes" abajo, el enfoque de `GRANT org_configs` directo quedó reemplazado por funciones `SECURITY DEFINER` acotadas  
+**Estado:** F2 solo falta C-12 (Slack, bloqueado — sin workspace todavía) · F3 arrancado con C-23 (manual revenue) hecho, resto **en pausa** — precios de planes (Essential/Professional/Enterprise/MSSP) todavía sin definir, C-20 no puede arrancar sin eso · **C-01/C-01b/C-14 live y verificado end-to-end en `ops.vexraptor.com`** (2026-09-15, cliente 13 Elaborando Futuro con 6 targets + 2 scans reales) — el enfoque de `GRANT org_configs` directo quedó reemplazado por funciones `SECURITY DEFINER` acotadas, ver "Reglas permanentes" abajo  
 **Regla:** un ID por chat. No saltar a F5 antes de F3 (cohorts sin billing son teatro).  
 **HECHO:** checkbox `[x]` + 1 línea de evidencia (URL, test o comando). Si falta, sigue `EN CURSO`.
 
@@ -45,6 +45,27 @@ Raptor con RLS). Corregido en PR #5. Reglas para que no se repita:
    verifica primero en local con el mismo patrón exacto antes de aplicarlo en el
    droplet — nunca improvisar SQL de permisos directo en producción sin haberlo
    probado antes.
+6. **`JWT_SECRET_KEY` de Command y `SECRET_KEY` de Raptor son el mismo secreto
+   compartido, no dos secretos independientes.** Command no valida contraseñas —
+   hace proxy del login a Raptor y verifica el JWT que Raptor ya firmó
+   (`operator_from_access_token` en `backend/app/auth.py`, usa
+   `settings.jwt_secret_key`). Si se regenera uno sin copiar el mismo valor al
+   otro, el login falla con `"invalid token"` (401) — un error que se ve idéntico
+   a contraseña incorrecta pero no lo es. Nunca rotar `JWT_SECRET_KEY` en
+   Command sin copiar el `SECRET_KEY` real de Raptor (`~/vex-raptor/.env` en el
+   droplet) al mismo tiempo. Incidente real: 2026-09-15, tras reconstruir
+   `~/vex-founder.env` con un secreto nuevo aleatorio, el login quedó roto en
+   Command (pero seguía funcionando en Raptor directo) hasta copiar el valor real.
+7. **`GRANT INSERT` sobre una tabla con columna `SERIAL`/`IDENTITY` no alcanza —
+   también hace falta `GRANT USAGE ON SEQUENCE <tabla>_id_seq`.** Sin esto,
+   Postgres rechaza el `INSERT` con `permission denied for sequence ..._id_seq`
+   aunque el `INSERT` sobre la tabla ya esté concedido. Aplica a cualquier grant
+   nuevo de escritura, no solo `audit_log`. Ver `sql/003_roles.sql` (PR #10).
+8. **Un rol de runtime 100% solo-lectura (`vex_founder_ro`) puede necesitar una
+   excepción angosta de escritura si la app tiene su propia bitácora de
+   auditoría** (`founder.audit_log`) — el patrón correcto es `GRANT INSERT`
+   (nunca `UPDATE`/`DELETE`) solo en esa tabla puntual, más el `USAGE` de su
+   secuencia (regla 7), sin ampliar el resto de sus permisos. Ver PR #9/#10.
 
 ## F0 — Plantilla (local)
 
