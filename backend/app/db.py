@@ -33,6 +33,16 @@ async def init_db() -> None:
     await _run_migrations()
 
 
+def _migration_engine() -> AsyncEngine:
+    """Separate engine for DDL migrations — owner URL when configured, otherwise
+    falls back to the runtime engine (local dev keeps working with one URL)."""
+    migration_url = settings.resolved_migration_url
+    if migration_url and migration_url != settings.database_url:
+        return create_async_engine(_async_url(migration_url), pool_pre_ping=True)
+    assert _engine is not None
+    return _engine
+
+
 async def close_db() -> None:
     global _engine, _session_factory
     if _engine:
@@ -99,37 +109,44 @@ async def _run_sql_file(conn, path: Path) -> None:
             await conn.execute(text(stmt))
 
 
-async def _run_sql_file_tx(path: Path) -> None:
-    assert _engine is not None
-    async with _engine.begin() as conn:
+async def _run_sql_file_tx(path: Path, engine: AsyncEngine | None = None) -> None:
+    eng = engine or _engine
+    assert eng is not None
+    async with eng.begin() as conn:
         await _run_sql_file(conn, path)
 
 
 async def _run_migrations() -> None:
     assert _engine is not None
-    await _run_sql_file_tx(SQL_DIR / "001_founder_schema.sql")
-
-    async with _engine.connect() as conn:
-        r = await conn.execute(
-            text(
-                "SELECT 1 FROM information_schema.tables "
-                "WHERE table_schema = 'public' AND table_name = 'organizations' LIMIT 1"
-            )
-        )
-        has_raptor = r.scalar() is not None
-
-    if not has_raptor and settings.founder_dev_stub:
-        logger.warning("Raptor tables missing — applying dev stub")
-        await _run_sql_file_tx(SQL_DIR / "004_dev_raptor_stub.sql")
-        await _run_sql_file_tx(SQL_DIR / "005_dev_seed.sql")
-        has_raptor = True
-
-    if has_raptor:
-        await _run_sql_file_tx(SQL_DIR / "002_aggregate_views.sql")
-    else:
-        logger.warning("Skipping aggregate views")
-
+    mig_engine = _migration_engine()
+    owns_mig_engine = mig_engine is not _engine
     try:
-        await _run_sql_file_tx(SQL_DIR / "003_roles.sql")
-    except Exception as exc:
-        logger.info("roles migration skipped: %s", exc)
+        await _run_sql_file_tx(SQL_DIR / "001_founder_schema.sql", mig_engine)
+
+        async with _engine.connect() as conn:
+            r = await conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_name = 'organizations' LIMIT 1"
+                )
+            )
+            has_raptor = r.scalar() is not None
+
+        if not has_raptor and settings.founder_dev_stub:
+            logger.warning("Raptor tables missing — applying dev stub")
+            await _run_sql_file_tx(SQL_DIR / "004_dev_raptor_stub.sql", mig_engine)
+            await _run_sql_file_tx(SQL_DIR / "005_dev_seed.sql", mig_engine)
+            has_raptor = True
+
+        if has_raptor:
+            await _run_sql_file_tx(SQL_DIR / "002_aggregate_views.sql", mig_engine)
+        else:
+            logger.warning("Skipping aggregate views")
+
+        try:
+            await _run_sql_file_tx(SQL_DIR / "003_roles.sql", mig_engine)
+        except Exception as exc:
+            logger.info("roles migration skipped: %s", exc)
+    finally:
+        if owns_mig_engine:
+            await mig_engine.dispose()

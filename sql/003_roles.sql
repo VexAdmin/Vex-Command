@@ -22,3 +22,10 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA founder GRANT SELECT, INSERT, UPDATE, DELETE 
 -- Explicit deny pattern: ro role must not read scan_history.findings column via table grant.
 -- Views never expose findings — revoke direct public table access from ro if granted by mistake.
 REVOKE ALL ON public.scan_history FROM vex_founder_ro;
+
+GRANT EXECUTE ON FUNCTION founder.f_org_targets() TO vex_founder_ro, vex_founder_rw;
+GRANT SELECT ON founder.v_org_targets TO vex_founder_ro, vex_founder_rw;
+
+-- Scans/metrics live behind Raptor RLS — same SECURITY DEFINER pattern as targets.
+GRANT EXECUTE ON FUNCTION founder.f_scan_history() TO vex_founder_ro, vex_founder_rw;
+GRANT EXECUTE ON FUNCTION founder.f_scan_metrics() TO vex_founder_ro, vex_founder_rw;

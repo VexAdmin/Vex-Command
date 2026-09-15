@@ -68,3 +68,11 @@ def test_sql_customer_scans_and_targets(sql_client):
     assert "https://harbor.test" in body["authorized_targets"]
     assert len(body["recent_scans"]) >= 2
     assert "findings" not in str(body["recent_scans"]).lower()
+
+
+def test_sql_customer_scan_metrics_fallback(sql_client):
+    r = sql_client.get("/api/founder/v1/customers/3")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["usage_30d"]["scans"] >= 1
+    assert len(body["recent_scans"]) >= 1

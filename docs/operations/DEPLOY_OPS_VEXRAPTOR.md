@@ -24,19 +24,41 @@ Raptor **no** se modifica en código; solo se comparte `SECRET_KEY` (JWT) y Post
 ## Deploy inicial (hecho 2026-09-14)
 
 1. **DNS** — registro `A` `ops` → IP droplet, proxied (Cloudflare).
-2. **Postgres** — `sql/001`, `002`, `003` + passwords `vex_founder_ro/rw` vía `deploy/apply-founder-roles.sh`.
-3. **Grants extra** (una vez, porque las tablas las creó `vex_raptor` y el contenedor migra como `vex_founder_rw`):
+2. **Postgres, migraciones (owner)** — `sql/001`, `002`, `003` corren como `vex_raptor`
+   (owner/superuser), vía `MIGRATION_DATABASE_URL` — nunca con `vex_founder_rw`.
+   Passwords de `vex_founder_ro/rw` vía `deploy/apply-founder-roles.sh`.
+3. **Runtime = solo lectura acotada, sin ownership ni acceso directo a `public.*`.**
+   `vex_founder_ro` (y `rw` para escrituras en `founder.*` como C-23 manual revenue)
+   NO tienen `GRANT` sobre tablas de `public` de Raptor, ni ownership del schema
+   `founder`. Ver `deploy/bootstrap-founder-db-grants.sql` (versión mínima,
+   solo migración) — el `GRANT CREATE`/`ALTER SCHEMA OWNER`/`GRANT SELECT` amplio
+   que este archivo tenía antes del 2026-09-15 quedó revertido.
 
-```sql
-GRANT CREATE ON DATABASE vex_raptor TO vex_founder_rw;
-ALTER SCHEMA founder OWNER TO vex_founder_rw;
-GRANT USAGE ON SCHEMA public TO vex_founder_rw;
-GRANT SELECT ON public.organizations, public.users, public.scan_history, public.org_configs TO vex_founder_rw;
--- + REASSIGN OWNER de tablas/vistas/sequences en schema founder a vex_founder_rw
-```
+**RLS (Raptor T-22):** `org_configs`, `scan_history` y `scan_metrics` tienen Row
+Level Security forzado. En vez de un bypass global de sesión (`app.bypass_rls`,
+removido el 2026-09-15 por ser demasiado amplio — se saltaba RLS para cualquier
+tabla, no solo las que Command necesita), Command usa funciones `SECURITY DEFINER`
+acotadas en el schema `founder`, cada una exponiendo solo las columnas necesarias
+(nunca `scan_history.findings`, el payload crudo de pentest):
+
+- `founder.f_org_targets()` → `founder.v_org_targets` (org_id, allowed_targets)
+- `founder.f_scan_history()` — usada dentro de `founder.v_scan_attribution`
+- `founder.f_scan_metrics()` — ídem, tolera la tabla ausente (columna opcional
+  según el entorno)
+
+Estas funciones son dueñas del schema `founder` (corren como `vex_raptor` al
+definirse) y por tanto se saltan RLS de forma controlada — `vex_founder_ro/rw`
+solo tienen `GRANT EXECUTE` sobre ellas, nunca `SELECT` directo sobre las tablas
+de `public` con RLS. Ver `sql/002_aggregate_views.sql` y `sql/003_roles.sql`.
+
+Verificar tras aplicar: `psql -U vex_founder_ro -c "SELECT * FROM founder.v_org_targets;"`
+debe devolver filas reales (no vacío, no error de permisos).
 
 4. **Imagen** — `docker build -f deploy/Dockerfile.vex-founder -t vex-founder .`
-5. **Contenedor** — ver `deploy/run-vex-founder.sh` + `~/vex-founder.env` (no commitear).
+5. **Contenedor** — dos URLs de conexión separadas en `~/vex-founder.env` (no
+   commitear): `DATABASE_URL` (runtime, `vex_founder_ro`) y `MIGRATION_DATABASE_URL`
+   (solo migraciones on-startup, `vex_raptor` owner). Ver
+   `deploy/run-vex-founder.sh` + `deploy/.env.production.example`.
 6. **nginx** — vhost `ops-vexraptor` (headers `noindex`, proxy a `127.0.0.1:8081`).
 
 **Verificación:**

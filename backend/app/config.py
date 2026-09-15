@@ -24,11 +24,18 @@ class Settings(BaseSettings):
     founder_dev_stub: bool = True
 
     database_url: str = ""
+    # Owner/superuser URL for on-startup DDL migrations only (sql/001-003). Falls
+    # back to database_url when unset — local dev keeps working with one URL.
+    migration_database_url: str = ""
     raptor_health_url: str = "http://127.0.0.1:8080/health"
     raptor_auth_url: str = "http://127.0.0.1:8000/api/v1/auth"
     linear_workspace_url: str = ""
     serve_static: bool = False
     static_dir: str = "static"
+
+    @property
+    def resolved_migration_url(self) -> str:
+        return self.migration_database_url or self.database_url
 
     @property
     def resolved_data_source(self) -> str:
