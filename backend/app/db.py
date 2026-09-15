@@ -123,7 +123,11 @@ async def _run_migrations() -> None:
     try:
         await _run_sql_file_tx(SQL_DIR / "001_founder_schema.sql", mig_engine)
 
-        async with _engine.connect() as conn:
+        # Probe with mig_engine (owner role), not the runtime engine: the runtime
+        # role (vex_founder_ro) only sees organizations/users in information_schema
+        # once 003_roles.sql has granted it SELECT there, but 003 runs AFTER this
+        # check in the same pass — using the owner avoids that first-boot race.
+        async with mig_engine.connect() as conn:
             r = await conn.execute(
                 text(
                     "SELECT 1 FROM information_schema.tables "
