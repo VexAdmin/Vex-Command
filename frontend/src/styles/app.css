@@ -1,18 +1,18 @@
 :root {
-  --ink: #0e141b;
-  --ink-2: #1c2733;
-  --muted: #5b6b7c;
-  --line: #d7dee7;
-  --paper: #f3f6f9;
+  --ink: #131b2e;
+  --ink-2: #1a2440;
+  --muted: #64748b;
+  --line: #d5deea;
+  --paper: #eef2fa;
   --panel: #ffffff;
-  --brand: #6d28d9;
-  --brand-deep: #5b21b6;
-  --cyan: #0e7490;
-  --good: #0b6e4f;
-  --warn: #b8860b;
-  --bad: #b42318;
-  --chip: #e8eef4;
-  --shadow: 0 1px 0 rgba(14, 20, 27, 0.04), 0 12px 32px rgba(14, 20, 27, 0.06);
+  --brand: #8b5cf6;
+  --brand-deep: #7c3aed;
+  --cyan: #06b6d4;
+  --good: #0891b2;
+  --warn: #f59e0b;
+  --bad: #c0284f;
+  --chip: #e8eef8;
+  --shadow: 0 1px 0 rgba(19, 27, 46, 0.05), 0 12px 32px rgba(19, 27, 46, 0.09);
   --radius: 12px;
   --nav: 248px;
   --top: 56px;
@@ -28,8 +28,8 @@ body {
   font-family: var(--font);
   color: var(--ink);
   background:
-    radial-gradient(1200px 500px at 10% -10%, #e4ddf7 0%, transparent 55%),
-    radial-gradient(900px 400px at 100% 0%, #e7e0d6 0%, transparent 50%),
+    radial-gradient(1200px 500px at 10% -10%, #ddd6fe 0%, transparent 55%),
+    radial-gradient(900px 400px at 100% 0%, #cffafe 0%, transparent 50%),
     var(--paper);
   letter-spacing: -0.01em;
 }
