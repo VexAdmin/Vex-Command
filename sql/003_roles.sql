@@ -41,3 +41,11 @@ GRANT EXECUTE ON FUNCTION founder.f_scan_metrics() TO vex_founder_ro, vex_founde
 GRANT USAGE ON SCHEMA public TO vex_founder_ro;
 GRANT SELECT ON public.organizations TO vex_founder_ro;
 GRANT SELECT (id, email, org_id) ON public.users TO vex_founder_ro;
+
+-- vex_founder_ro is read-only everywhere except its own audit trail: the app
+-- writes one row to founder.audit_log per authenticated request (who viewed
+-- what, when). INSERT-only, no SELECT/UPDATE/DELETE beyond what the ro role
+-- already has from the schema-wide SELECT grant above -- narrowest exception
+-- that lets the runtime role log its own activity without any write access
+-- to actual data tables.
+GRANT INSERT ON founder.audit_log TO vex_founder_ro;
