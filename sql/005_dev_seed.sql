@@ -33,3 +33,8 @@ VALUES
     (2, 'nova.test'),
     (3, NULL)
 ON CONFLICT (org_id) DO NOTHING;
+
+INSERT INTO public.scan_metrics (scan_id, org_id, scan_type, findings, critical, high, created_at)
+VALUES
+    ('55555555-5555-5555-5555-555555555555', 3, 'pentest', 7, 1, 2, NOW() - INTERVAL '2 days')
+ON CONFLICT (scan_id) DO NOTHING;

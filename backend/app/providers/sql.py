@@ -216,7 +216,7 @@ class SqlProvider:
                 for row in r.fetchall()
             ]
             cfg = await session.execute(
-                text("SELECT allowed_targets FROM public.org_configs WHERE org_id = :org_id"),
+                text("SELECT allowed_targets FROM founder.v_org_targets WHERE org_id = :org_id"),
                 {"org_id": org_id},
             )
             cfg_row = cfg.first()
@@ -225,7 +225,7 @@ class SqlProvider:
                     "SELECT id, target, status, started_at, finding_count "
                     "FROM founder.v_scan_attribution "
                     "WHERE org_id = :org_id "
-                    "ORDER BY started_at::timestamptz DESC NULLS LAST "
+                    "ORDER BY founder.scan_ts(started_at) DESC NULLS LAST "
                     "LIMIT 25"
                 ),
                 {"org_id": org_id},

@@ -61,3 +61,19 @@ CREATE TABLE IF NOT EXISTS public.org_configs (
 );
 
 CREATE INDEX IF NOT EXISTS ix_org_configs_org ON public.org_configs (org_id);
+
+CREATE TABLE IF NOT EXISTS public.scan_metrics (
+    id              SERIAL PRIMARY KEY,
+    scan_id         VARCHAR(36) NOT NULL UNIQUE,
+    org_id          INT REFERENCES public.organizations(id) ON DELETE SET NULL,
+    scan_type       VARCHAR(100) DEFAULT 'full',
+    findings        INT DEFAULT 0,
+    critical        INT DEFAULT 0,
+    high            INT DEFAULT 0,
+    fp_count        INT DEFAULT 0,
+    duration_s        DOUBLE PRECISION DEFAULT 0,
+    owasp_cats      JSONB,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_scan_metrics_org_created ON public.scan_metrics (org_id, created_at);
