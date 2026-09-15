@@ -4,11 +4,47 @@
 > Repo: `~/Documents/Proyectos/Vex-Command` · producto: Founder Console (`ops.vexraptor.com`).
 > **No** es el Dashboard MSSP (`app.vexraptor.com`). Nunca en el nav del tenant.
 
-**Estado:** F2 solo falta C-12 (Slack, bloqueado — sin workspace todavía) · F3 arrancado con C-23 (manual revenue) hecho, resto **en pausa** — precios de planes (Essential/Professional/Enterprise/MSSP) todavía sin definir, C-20 no puede arrancar sin eso · **C-01/C-01b live** · **C-14** código listo (targets + recent scans + fix atribución legacy) — redeploy `vex-founder` + `GRANT org_configs` en prod  
+**Estado:** F2 solo falta C-12 (Slack, bloqueado — sin workspace todavía) · F3 arrancado con C-23 (manual revenue) hecho, resto **en pausa** — precios de planes (Essential/Professional/Enterprise/MSSP) todavía sin definir, C-20 no puede arrancar sin eso · **C-01/C-01b live** · **C-14 código en `dev` (PR #5, mergeado 2026-09-15), pendiente redeploy en el droplet** — ver "Reglas permanentes" abajo, el enfoque de `GRANT org_configs` directo quedó reemplazado por funciones `SECURITY DEFINER` acotadas  
 **Regla:** un ID por chat. No saltar a F5 antes de F3 (cohorts sin billing son teatro).  
 **HECHO:** checkbox `[x]` + 1 línea de evidencia (URL, test o comando). Si falta, sigue `EN CURSO`.
 
 ---
+
+## Reglas permanentes para prompts a Cursor (aprendidas 2026-09-15)
+
+Incidente: Cursor desplegó C-01/C-01b/C-14 directo a producción y con push directo a
+`dev` (sin PR) mientras la sesión de Claude trabajaba en paralelo, sin que quedara
+registrado aquí. El código funcionaba pero violaba el diseño de permisos acotados
+acordado (bypass RLS global vía `app.bypass_rls` en cada sesión, `vex_founder_rw` con
+ownership completo del schema `founder` + `SELECT` directo sobre tablas de `public` de
+Raptor con RLS). Corregido en PR #5. Reglas para que no se repita:
+
+1. **Nunca commit ni push directo a `dev` sin rama+PR**, ni siquiera para "solo
+   arreglar un bug chico" — cada prompt a Cursor debe decir explícitamente "rama
+   feature nueva, PR contra `dev`, nunca commit directo".
+2. **RLS de Raptor (`org_configs`, `scan_history`, `scan_metrics` tienen RLS
+   forzado)**: Command NUNCA se salta RLS con un bypass de sesión global
+   (`app.bypass_rls`). El patrón correcto es una función `SECURITY DEFINER` en el
+   schema `founder`, acotada a las columnas exactas que se necesitan (nunca
+   `scan_history.findings`), con `GRANT EXECUTE` solo a `vex_founder_ro/rw`. Ver
+   `sql/002_aggregate_views.sql` (`f_org_targets`, `f_scan_history`,
+   `f_scan_metrics`) como plantilla para cualquier tabla nueva de Raptor con RLS.
+3. **`vex_founder_rw` nunca es owner del schema `founder`** ni tiene `SELECT`
+   directo sobre tablas de `public` de Raptor. Las migraciones DDL (`sql/001-003`)
+   corren con `MIGRATION_DATABASE_URL` (usuario owner `vex_raptor`), separado de
+   `DATABASE_URL` (runtime, `vex_founder_ro`). Ver `backend/app/db.py`.
+3b. **Funciones `LANGUAGE sql` se validan al crearse, no solo al ejecutarse** —
+   si la tabla referenciada puede no existir en algún entorno (dev-stub local vs.
+   producción real), usar `LANGUAGE plpgsql` con `EXECUTE` dinámico y un chequeo
+   previo en `information_schema.tables`, como hace `f_org_targets`/`f_scan_metrics`.
+4. **Verificación real antes de aceptar "tests en verde"**: correr `make test` Y
+   `make test-sql` (este último necesita Postgres local con el dev-stub poblado —
+   si da "skipped" en vez de "passed", el entorno está vacío, no confirma nada).
+   Nunca aceptar el reporte de Cursor sin pedir el output real pegado.
+5. **Cualquier cambio de permisos/roles de base de datos en producción** se
+   verifica primero en local con el mismo patrón exacto antes de aplicarlo en el
+   droplet — nunca improvisar SQL de permisos directo en producción sin haberlo
+   probado antes.
 
 ## F0 — Plantilla (local)
 
