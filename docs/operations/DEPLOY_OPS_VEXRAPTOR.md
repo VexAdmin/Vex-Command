@@ -48,16 +48,13 @@ curl -s https://ops.vexraptor.com/health
 
 ---
 
-## Auth hoy (workaround hasta C-01b)
+## Auth (C-01b)
 
-- API: `FOUNDER_AUTH_MODE=jwt` · `JWT_SECRET_KEY` = `SECRET_KEY` de Raptor.
-- **No hay pantalla de login** en Command.
-- Flujo manual (~2 h por access token):
-  1. Login en `https://app.vexraptor.com`
-  2. En consola de `app`: `fetch('/api/v1/auth/refresh', {method:'POST', credentials:'include'}).then(r=>r.json()).then(d=>prompt('token', d.token))`
-  3. En consola de `ops`: `localStorage.setItem('founder_token', TOKEN)` + reload
-
-**Próximo paso (C-01b):** login propio en `ops` (usuario/contraseña) + sesión httpOnly + auto-refresh — sustituye este ritual.
+- Pantalla **`/login`** en `ops` — mismas credenciales que Raptor (platform operator).
+- Command proxy → `RAPTOR_AUTH_URL` (`http://vex-raptor:8000/api/v1/auth`) en red Docker.
+- Sesión en cookies httpOnly `founder_access` / `founder_refresh` (dominio `ops` only).
+- Auto-refresh vía `POST /api/founder/v1/auth/refresh` — **no** pegar JWT en consola.
+- Env prod: `RAPTOR_AUTH_URL=http://vex-raptor:8000/api/v1/auth`
 
 ---
 
@@ -104,7 +101,7 @@ Fixes en imagen: `ENV SQL_DIR=/app/sql` · fallback SPA en rutas Vue (`backend/a
 
 ## Seguridad pendiente (go-live)
 
-- [ ] **C-01b** — Login UI en `ops` (prioridad)
+- [x] **C-01b** — Login UI en `ops` (rebuild + `run-vex-founder.sh` tras `git pull`)
 - [ ] Cloudflare Access o IP allowlist (capa extra opcional)
 - [ ] WAF rules
 - [ ] Backup `pg_dump` schema `founder`

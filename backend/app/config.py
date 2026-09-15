@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     database_url: str = ""
     raptor_health_url: str = "http://127.0.0.1:8080/health"
+    raptor_auth_url: str = "http://127.0.0.1:8000/api/v1/auth"
     linear_workspace_url: str = ""
     serve_static: bool = False
     static_dir: str = "static"

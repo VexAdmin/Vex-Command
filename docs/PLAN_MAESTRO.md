@@ -4,7 +4,7 @@
 > Repo: `~/Documents/Proyectos/Vex-Command` · producto: Founder Console (`ops.vexraptor.com`).
 > **No** es el Dashboard MSSP (`app.vexraptor.com`). Nunca en el nav del tenant.
 
-**Estado:** F2 solo falta C-12 (Slack, bloqueado — sin workspace todavía) · F3 arrancado con C-23 (manual revenue) hecho, resto **en pausa** — precios de planes (Essential/Professional/Enterprise/MSSP) todavía sin definir, C-20 no puede arrancar sin eso · **C-01 live** en `ops.vexraptor.com` (2026-09-14) · **siguiente: C-01b** login UI  
+**Estado:** F2 solo falta C-12 (Slack, bloqueado — sin workspace todavía) · F3 arrancado con C-23 (manual revenue) hecho, resto **en pausa** — precios de planes (Essential/Professional/Enterprise/MSSP) todavía sin definir, C-20 no puede arrancar sin eso · **C-01 live** · **C-01b** login UI (código listo — redeploy `vex-founder`) · siguiente: **C-14** authorized targets Account 360  
 **Regla:** un ID por chat. No saltar a F5 antes de F3 (cohorts sin billing son teatro).  
 **HECHO:** checkbox `[x]` + 1 línea de evidencia (URL, test o comando). Si falta, sigue `EN CURSO`.
 
@@ -28,7 +28,7 @@ Sin Stripe. El panel muestra orgs/scans/ops reales o vacío honesto, no MRR inve
 | ID | Tarea | Estado | Gate |
 |---|---|---|---|
 | C-01 | DNS `ops.vexraptor.com` + TLS + `noindex` + vhost | [x] 2026-09-14 · `https://ops.vexraptor.com/health` · runbook `docs/operations/DEPLOY_OPS_VEXRAPTOR.md` |
-| C-01b | Login UI en `ops` (usuario/contraseña, sesión httpOnly, auto-refresh) | [ ] | Sustituye ritual `localStorage.founder_token` · gate antes del dashboard |
+| C-01b | Login UI en `ops` (usuario/contraseña, sesión httpOnly, auto-refresh) | [x] | `LoginView` + `/auth/login|refresh|logout|me` · proxy Raptor · cookies `founder_*` · `test_founder_auth` |
 | C-02 | Auth `platform_operator` + JWT (`FOUNDER_AUTH_MODE=jwt`) | [x] | `backend/app/auth.py` · tests `test_auth.py` (7) |
 | C-03 | Schema `founder` + roles `vex_founder_ro/rw` | [x] | `sql/001` + `sql/003` · migrate on startup |
 | C-04 | Vistas agregadas sin findings | [x] | `sql/002_aggregate_views.sql` · solo conteos |
@@ -95,7 +95,7 @@ Solo con F3 cerrado.
 ## Go-live (cuando F1+ esté en `ops.`)
 
 - [x] DNS + contenedor + nginx (`ops.vexraptor.com` live 2026-09-14)
-- [ ] C-01b login UI (sesión founder, no JWT manual)
+- [x] C-01b login UI (sesión founder httpOnly — redeploy ops para activar)
 - [ ] WAF / IP allowlist opcional
 - [ ] Session TTL 30–60 min
 - [ ] Backup `pg_dump` schema `founder`

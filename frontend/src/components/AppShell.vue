@@ -33,6 +33,7 @@
           <span class="pill mono">FY2026 · USD</span>
           <button class="btn" type="button" @click="exportCsv">Export CSV</button>
           <button class="btn primary" type="button" @click="runBrief">Weekly brief</button>
+          <button class="btn" type="button" @click="signOut">Sign out</button>
         </div>
       </header>
       <div class="content">
@@ -52,8 +53,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { api, exportAccounting } from '@/api/client'
+import { useRoute, useRouter } from 'vue-router'
+import { api, exportAccounting, logout } from '@/api/client'
+
+const router = useRouter()
 
 const route = useRoute()
 const title = computed(() => String(route.meta.title || 'Command Center'))
@@ -122,5 +125,10 @@ async function runBrief() {
   } catch {
     brief.value = 'API offline. Arranca `make api` en el puerto 8081.'
   }
+}
+
+async function signOut() {
+  await logout()
+  await router.push('/login')
 }
 </script>

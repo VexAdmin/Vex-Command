@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from app.audit import list_recent, record
 from app.auth import Operator, require_operator
 from app.config import settings
+from app.founder_auth import router as founder_auth_router
 from app.db import close_db, init_db
 from app.providers import build_provider
 
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Vex Command", version="0.2.0", docs_url="/api/founder/docs", lifespan=lifespan)
+app.include_router(founder_auth_router, prefix="/api/founder/v1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.console_origin, "http://127.0.0.1:5174"],
