@@ -4,7 +4,7 @@
 > Repo: `~/Documents/Proyectos/Vex-Command` · producto: Founder Console (`ops.vexraptor.com`).
 > **No** es el Dashboard MSSP (`app.vexraptor.com`). Nunca en el nav del tenant.
 
-**Estado:** F2 solo falta C-12 (Slack, bloqueado — sin workspace todavía) · F3 arrancado con C-23 (manual revenue) hecho, resto **en pausa** — precios de planes (Essential/Professional/Enterprise/MSSP) todavía sin definir, C-20 no puede arrancar sin eso · **C-01 live** · **C-01b** login UI (código listo — redeploy `vex-founder`) · siguiente: **C-14** authorized targets Account 360  
+**Estado:** F2 solo falta C-12 (Slack, bloqueado — sin workspace todavía) · F3 arrancado con C-23 (manual revenue) hecho, resto **en pausa** — precios de planes (Essential/Professional/Enterprise/MSSP) todavía sin definir, C-20 no puede arrancar sin eso · **C-01/C-01b live** · **C-14** código listo (targets + recent scans + fix atribución legacy) — redeploy `vex-founder` + `GRANT org_configs` en prod  
 **Regla:** un ID por chat. No saltar a F5 antes de F3 (cohorts sin billing son teatro).  
 **HECHO:** checkbox `[x]` + 1 línea de evidencia (URL, test o comando). Si falta, sigue `EN CURSO`.
 
@@ -48,6 +48,7 @@ Sin Stripe. El panel muestra orgs/scans/ops reales o vacío honesto, no MRR inve
 | C-11 | Goals / OKRs editables (`founder.goal` / `okr`) | [x] PUT `/goals` persiste mock + SQL · `test_goals` + `test_f1_goals` |
 | C-12 | Alertas Slack (pago n/a aún; cola ARQ, health, Gemini 24h si existe) | Mensaje real en canal privado |
 | C-13 | Support ligero o enlace Linear — no inventar ticketing enterprise | [x] Deep-link Linear via `LINEAR_WORKSPACE_URL` · `test_settings` |
+| C-14 | Account 360: authorized targets + recent scans (metadatos) | [x] `org_configs.allowed_targets` + `v_scan_attribution` (legacy `org_id` NULL por email) · `AccountView` · `test_f1_sql` |
 
 ---
 

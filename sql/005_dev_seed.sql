@@ -22,5 +22,14 @@ VALUES
     ('22222222-2222-2222-2222-222222222222', 'viewer@nova.test', 'https://nova.test', 'completed',
      (NOW() - INTERVAL '1 days')::text, (NOW() - INTERVAL '1 days')::text, 12, 2),
     ('33333333-3333-3333-3333-333333333333', 'idle@meridian.test', 'https://meridian.test', 'running',
-     (NOW() - INTERVAL '3 hours')::text, NULL, 0, 3)
+     (NOW() - INTERVAL '3 hours')::text, NULL, 0, 3),
+    ('44444444-4444-4444-4444-444444444444', 'admin@harbor.test', 'https://legacy.harbor.test', 'completed',
+     (NOW() - INTERVAL '5 days')::text, (NOW() - INTERVAL '5 days')::text, 2, NULL)
 ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.org_configs (org_id, allowed_targets)
+VALUES
+    (1, 'https://harbor.test, https://api.harbor.test'),
+    (2, 'nova.test'),
+    (3, NULL)
+ON CONFLICT (org_id) DO NOTHING;

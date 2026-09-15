@@ -52,6 +52,12 @@ def _risk(health: int) -> str:
     return "risk"
 
 
+def _parse_allowed_targets(raw: str | None) -> list[str]:
+    if not raw or not raw.strip():
+        return []
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
 def _row_to_org(row: Any) -> dict[str, Any]:
     last_active = row.last_active_at
     last_active_days = _days_ago(last_active)
@@ -209,9 +215,38 @@ class SqlProvider:
                 {"body": row.body, "actor_email": row.actor_email}
                 for row in r.fetchall()
             ]
+            cfg = await session.execute(
+                text("SELECT allowed_targets FROM public.org_configs WHERE org_id = :org_id"),
+                {"org_id": org_id},
+            )
+            cfg_row = cfg.first()
+            scans = await session.execute(
+                text(
+                    "SELECT id, target, status, started_at, finding_count "
+                    "FROM founder.v_scan_attribution "
+                    "WHERE org_id = :org_id "
+                    "ORDER BY started_at::timestamptz DESC NULLS LAST "
+                    "LIMIT 25"
+                ),
+                {"org_id": org_id},
+            )
+            recent_scans = [
+                {
+                    "id": row.id,
+                    "target": row.target,
+                    "status": row.status,
+                    "started_at": row.started_at,
+                    "finding_count": row.finding_count or 0,
+                }
+                for row in scans.fetchall()
+            ]
         return {
             "org": org,
             "notes": notes,
+            "authorized_targets": _parse_allowed_targets(
+                cfg_row.allowed_targets if cfg_row else None
+            ),
+            "recent_scans": recent_scans,
             "usage_30d": {
                 "scans": org["scans_30d"],
                 "findings_hc": org["findings_hc_30d"],

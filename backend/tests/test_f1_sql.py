@@ -58,3 +58,13 @@ def test_audit_persisted(sql_client):
     audit = sql_client.get("/api/founder/v1/audit")
     assert audit.status_code == 200
     assert any(i["action"] == "customers.360" for i in audit.json()["items"])
+
+
+def test_sql_customer_scans_and_targets(sql_client):
+    r = sql_client.get("/api/founder/v1/customers/1")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["usage_30d"]["scans"] >= 2
+    assert "https://harbor.test" in body["authorized_targets"]
+    assert len(body["recent_scans"]) >= 2
+    assert "findings" not in str(body["recent_scans"]).lower()

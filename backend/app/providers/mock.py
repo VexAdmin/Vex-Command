@@ -87,6 +87,8 @@ class MockProvider:
         return {
             "org": org_dict(org),
             "notes": notes,
+            "authorized_targets": [f"https://{org.slug}.example"],
+            "recent_scans": [],
             "usage_30d": {
                 "scans": org.scans_30d,
                 "findings_hc": org.findings_hc_30d,

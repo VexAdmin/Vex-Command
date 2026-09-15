@@ -45,3 +45,19 @@ CREATE TABLE IF NOT EXISTS public.scan_history (
 
 CREATE INDEX IF NOT EXISTS ix_scan_history_org_id ON public.scan_history (org_id);
 CREATE INDEX IF NOT EXISTS ix_scan_history_started_at ON public.scan_history (started_at);
+
+CREATE TABLE IF NOT EXISTS public.org_configs (
+    id              SERIAL PRIMARY KEY,
+    org_id          INT NOT NULL UNIQUE REFERENCES public.organizations(id) ON DELETE CASCADE,
+    haandle_id      VARCHAR(50),
+    api_token       TEXT,
+    vex_email       VARCHAR(255),
+    sentinel_enabled BOOLEAN DEFAULT FALSE,
+    sentinel_interval INT DEFAULT 60,
+    alert_webhook_url VARCHAR(512),
+    allowed_targets TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ix_org_configs_org ON public.org_configs (org_id);

@@ -4,7 +4,7 @@
 GRANT CREATE ON DATABASE vex_raptor TO vex_founder_rw;
 ALTER SCHEMA founder OWNER TO vex_founder_rw;
 GRANT USAGE ON SCHEMA public TO vex_founder_rw;
-GRANT SELECT ON public.organizations, public.users, public.scan_history TO vex_founder_rw;
+GRANT SELECT ON public.organizations, public.users, public.scan_history, public.org_configs TO vex_founder_rw;
 
 DO $$
 DECLARE r RECORD;
