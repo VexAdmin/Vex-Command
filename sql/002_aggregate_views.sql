@@ -72,7 +72,16 @@ $$;
 REVOKE ALL ON FUNCTION founder.f_scan_metrics() FROM public;
 
 -- Attribute scans to orgs: org_id on row, user email fallback, or scan_metrics when history row missing.
-CREATE OR REPLACE VIEW founder.v_scan_attribution AS
+-- DROP + CREATE (not CREATE OR REPLACE): local dev-stub and production Raptor
+-- schema declare scan_history.id/target/etc with DIFFERENT varchar lengths, and
+-- the UNION ALL below resolves to whichever the COALESCE/cast chain produces —
+-- REPLACE rejects any mismatch against the previously-created type either way.
+-- Dropping first avoids depending on the old view's exact column types, so this
+-- migration behaves identically in both environments. Downstream consumers
+-- (v_org_summary, v_platform_scan_ops, v_usage_platform) are also dropped via
+-- CASCADE and recreated immediately below in this same file.
+DROP VIEW IF EXISTS founder.v_scan_attribution CASCADE;
+CREATE VIEW founder.v_scan_attribution AS
 WITH history AS (
     SELECT
         COALESCE(sh.org_id, u.org_id) AS org_id,
