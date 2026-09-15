@@ -24,13 +24,13 @@ $$;
 CREATE OR REPLACE FUNCTION founder.f_scan_history()
 RETURNS TABLE(
     org_id integer,
-    id varchar,
-    target varchar,
-    status varchar,
-    started_at varchar,
-    finished_at varchar,
+    id character varying(36),
+    target character varying(2048),
+    status character varying(20),
+    started_at character varying(50),
+    finished_at character varying(50),
     finding_count integer,
-    user_email varchar
+    user_email character varying(255)
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -48,8 +48,8 @@ REVOKE ALL ON FUNCTION founder.f_scan_history() FROM public;
 CREATE OR REPLACE FUNCTION founder.f_scan_metrics()
 RETURNS TABLE(
     org_id integer,
-    scan_id varchar,
-    scan_type varchar,
+    scan_id character varying(36),
+    scan_type character varying(100),
     findings integer,
     created_at timestamptz
 )
