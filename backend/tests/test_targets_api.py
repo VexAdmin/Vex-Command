@@ -27,6 +27,31 @@ def client():
 
 @patch("app.targets_service.patch_org_allowed_targets", new_callable=AsyncMock)
 @patch("app.targets_service.get_org_allowed_targets", new_callable=AsyncMock)
+def test_add_bare_domain_jackontheroad(get_mock, patch_mock, client):
+    get_mock.return_value = "vehistrack.com\njackontheroad.es"
+    patch_mock.return_value = None
+    r = client.post(
+        "/api/founder/v1/customers/1/targets",
+        json={"entry": "jackontheroad.com"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["entry"] == "jackontheroad.com"
+    assert body["authorized_targets"] == [
+        "vehistrack.com",
+        "jackontheroad.es",
+        "jackontheroad.com",
+    ]
+    patch_mock.assert_awaited_once_with(
+        1,
+        "vehistrack.com\njackontheroad.es\njackontheroad.com",
+        "test-token",
+    )
+
+
+@patch("app.targets_service.patch_org_allowed_targets", new_callable=AsyncMock)
+@patch("app.targets_service.get_org_allowed_targets", new_callable=AsyncMock)
 def test_add_target_proxies_patch(get_mock, patch_mock, client):
     get_mock.return_value = "harbor.test"
     patch_mock.return_value = None
@@ -87,6 +112,20 @@ def test_add_rejects_duplicate(get_mock, client):
         headers={"Authorization": "Bearer test-token"},
     )
     assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert detail["code"] == "duplicate"
+
+
+@patch("app.targets_service.get_org_allowed_targets", new_callable=AsyncMock)
+def test_add_rejects_invalid_format(get_mock, client):
+    get_mock.return_value = None
+    r = client.post(
+        "/api/founder/v1/customers/1/targets",
+        json={"entry": "not a valid host"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert r.status_code == 422
+    assert r.json()["detail"]["code"] == "invalid_format"
 
 
 @patch("app.targets_service.patch_org_allowed_targets", new_callable=AsyncMock)

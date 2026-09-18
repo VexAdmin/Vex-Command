@@ -26,9 +26,12 @@ def host_of(target: str) -> str:
 
 
 def normalize_host(entry: str) -> str:
-    host = (host_of(entry) or entry).lower().strip(".")
+    cleaned = (entry or "").strip().strip("\ufeff")
+    host = (host_of(cleaned) or cleaned).lower().strip(".")
     if host.startswith("*."):
         host = host[2:]
+    if "@" in host:
+        host = host.rsplit("@", 1)[-1]
     return host
 
 
@@ -78,9 +81,22 @@ def parse_single_entry(entry: str) -> AllowlistEntry:
     host = normalize_host(cleaned)
     if not host:
         raise ValueError("invalid target entry")
-    if " " in host or "/" in host:
+    if " " in host or "/" in host or ":" in host:
+        raise ValueError("invalid target entry")
+    if not _is_plausible_host(host):
         raise ValueError("invalid target entry")
     return host
+
+
+def _is_plausible_host(host: str) -> bool:
+    if host == "localhost":
+        return True
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+    return "." in host and not host.startswith(".") and not host.endswith(".")
 
 
 def serialize_allowed_targets(entries: list[AllowlistEntry]) -> str:

@@ -51,12 +51,52 @@ async function fetchApi(path: string, init?: RequestInit, allowRefresh = true): 
   return res
 }
 
+type ApiErrorDetail = string | { code?: string; message?: string }
+
+export class ApiError extends Error {
+  readonly status: number
+  readonly path: string
+  readonly code?: string
+  readonly userMessage?: string
+
+  constructor(status: number, path: string, detail?: ApiErrorDetail) {
+    const parsed = parseApiErrorDetail(detail)
+    super(parsed.message || `${status} ${path}`)
+    this.name = 'ApiError'
+    this.status = status
+    this.path = path
+    this.code = parsed.code
+    this.userMessage = parsed.message
+  }
+}
+
+function parseApiErrorDetail(detail?: ApiErrorDetail): { code?: string; message?: string } {
+  if (!detail) return {}
+  if (typeof detail === 'string') {
+    return { message: detail }
+  }
+  return {
+    code: detail.code,
+    message: detail.message,
+  }
+}
+
+async function readApiError(res: Response, path: string): Promise<ApiError> {
+  let detail: ApiErrorDetail | undefined
+  try {
+    const body = await res.json()
+    detail = body?.detail as ApiErrorDetail | undefined
+  } catch {
+    detail = undefined
+  }
+  return new ApiError(res.status, path, detail)
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetchApi(path, init)
-  if (res.status === 401 || res.status === 403) {
-    throw new Error(`auth:${res.status}`)
+  if (!res.ok) {
+    throw await readApiError(res, path)
   }
-  if (!res.ok) throw new Error(`${res.status} ${path}`)
   return res.json() as Promise<T>
 }
 

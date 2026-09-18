@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import HTTPException, Request
 
 from app.raptor_client import get_org_allowed_targets, patch_org_allowed_targets
+from app.target_errors import policy_http_error
 from app.target_policy import (
     entry_to_display,
     entry_warnings,
@@ -39,7 +40,7 @@ async def add_target(org_id: int, entry: str, access_token: str) -> dict:
     try:
         merged, added = merge_add(current_raw, entry)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise policy_http_error(exc)
     await patch_org_allowed_targets(org_id, merged, access_token)
     after = [entry_to_display(e) for e in parse_allowed_targets(merged)]
     return {
@@ -57,9 +58,7 @@ async def remove_target(org_id: int, entry: str, access_token: str) -> dict:
     try:
         merged, removed = merge_remove(current_raw, entry)
     except ValueError as exc:
-        msg = str(exc)
-        status = 404 if "not on allowlist" in msg else 422
-        raise HTTPException(status_code=status, detail=msg)
+        raise policy_http_error(exc)
     await patch_org_allowed_targets(org_id, merged, access_token)
     after = [entry_to_display(e) for e in parse_allowed_targets(merged)]
     return {

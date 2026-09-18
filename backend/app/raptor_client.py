@@ -8,6 +8,7 @@ import httpx
 from fastapi import HTTPException
 
 from app.config import settings
+from app.target_errors import raptor_http_error
 
 logger = logging.getLogger("vex.command.raptor")
 
@@ -29,15 +30,26 @@ async def get_org_allowed_targets(org_id: int, access_token: str) -> str | None:
             r = await client.get(url, headers={"Authorization": f"Bearer {access_token}"})
     except httpx.HTTPError as exc:
         logger.warning("raptor org config GET failed org_id=%s: %s", org_id, exc)
-        raise HTTPException(status_code=502, detail="raptor upstream unavailable") from exc
-    if r.status_code == 404:
-        raise HTTPException(status_code=404, detail="org not found")
-    if r.status_code == 401:
-        raise HTTPException(status_code=401, detail="session expired or revoked")
-    if r.status_code == 403:
-        raise HTTPException(status_code=403, detail="not authorized for org config")
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "raptor_unavailable",
+                "message": "Raptor no disponible. Reintenta más tarde.",
+            },
+        ) from exc
     if r.status_code != 200:
-        raise HTTPException(status_code=502, detail="raptor upstream error")
+        logger.warning(
+            "raptor org config GET failed org_id=%s status=%s body=%s",
+            org_id,
+            r.status_code,
+            r.text[:500],
+        )
+        raise raptor_http_error(
+            r.status_code,
+            org_id=org_id,
+            action="GET org config",
+            body=r.text,
+        )
     data = r.json()
     if data.get("config") is None and "allowed_targets" not in data:
         return None
@@ -56,14 +68,23 @@ async def patch_org_allowed_targets(org_id: int, allowed_targets: str, access_to
             )
     except httpx.HTTPError as exc:
         logger.warning("raptor org config PATCH failed org_id=%s: %s", org_id, exc)
-        raise HTTPException(status_code=502, detail="raptor upstream unavailable") from exc
-    if r.status_code == 404:
-        raise HTTPException(status_code=404, detail="org not found")
-    if r.status_code == 401:
-        raise HTTPException(status_code=401, detail="session expired or revoked")
-    if r.status_code == 403:
-        raise HTTPException(status_code=403, detail="not authorized for org config")
-    if r.status_code == 422:
-        raise HTTPException(status_code=422, detail="invalid allowlist payload")
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "raptor_unavailable",
+                "message": "Raptor no disponible. Reintenta más tarde.",
+            },
+        ) from exc
     if r.status_code != 200:
-        raise HTTPException(status_code=502, detail="raptor upstream error")
+        logger.warning(
+            "raptor org config PATCH failed org_id=%s status=%s body=%s",
+            org_id,
+            r.status_code,
+            r.text[:500],
+        )
+        raise raptor_http_error(
+            r.status_code,
+            org_id=org_id,
+            action="PATCH org config",
+            body=r.text,
+        )

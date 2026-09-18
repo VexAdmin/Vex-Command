@@ -32,6 +32,16 @@ def test_parse_single_url_normalizes_host():
     assert parse_single_entry("https://Parabank.parasoft.com/") == "parabank.parasoft.com"
 
 
+def test_parse_single_bare_domain_jackontheroad():
+    assert parse_single_entry("jackontheroad.com") == "jackontheroad.com"
+
+
+def test_merge_add_bare_domain_with_existing_allowlist():
+    merged, added = merge_add("vehistrack.com\njackontheroad.es", "jackontheroad.com")
+    assert added == "jackontheroad.com"
+    assert merged == "vehistrack.com\njackontheroad.es\njackontheroad.com"
+
+
 def test_parse_single_cidr():
     net = parse_single_entry("10.0.0.0/24")
     assert str(net) == "10.0.0.0/24"
@@ -56,7 +66,7 @@ def test_merge_add_rejects_duplicate():
 def test_merge_add_enforces_max_length():
     base = "\n".join([f"host{i}.test" for i in range(200)])
     with pytest.raises(ValueError, match="2000 characters"):
-        merge_add(base, "x" * (MAX_ALLOWED_TARGETS_CHARS))
+        merge_add(base, "overflow.test")
 
 
 def test_merge_remove_by_hostname():

@@ -103,6 +103,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '@/api/client'
 import { money, pct } from '@/lib/format'
+import { targetAddErrorMessage, targetRemoveErrorMessage } from '@/lib/targetErrors'
 import type { Org } from '@/types'
 
 interface RecentScan {
@@ -205,7 +206,7 @@ async function addTarget() {
     data.value.authorized_targets = result.authorized_targets
     newTarget.value = ''
   } catch (e) {
-    targetsError.value = 'No se pudo agregar el target. Verifica el formato.'
+    targetsError.value = targetAddErrorMessage(e)
   } finally {
     targetsBusy.value = false
   }
@@ -228,8 +229,8 @@ async function removeTarget(entry: string) {
       body: JSON.stringify({ entry }),
     })
     data.value.authorized_targets = result.authorized_targets
-  } catch {
-    targetsError.value = 'No se pudo quitar el target.'
+  } catch (e) {
+    targetsError.value = targetRemoveErrorMessage(e)
   } finally {
     targetsBusy.value = false
   }

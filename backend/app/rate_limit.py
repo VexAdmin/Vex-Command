@@ -62,7 +62,10 @@ def enforce_targets_rate_limit(operator_email: str, org_id: int) -> None:
     if len(hits) >= TARGETS_MAX_MUTATIONS:
         raise HTTPException(
             status_code=429,
-            detail="too many target mutations, try again later",
+            detail={
+                "code": "rate_limited",
+                "message": "Demasiados cambios seguidos. Espera unos minutos.",
+            },
         )
     hits.append(now)
 
