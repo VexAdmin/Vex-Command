@@ -15,7 +15,7 @@
       <div class="card">
         <h3>Cuentas</h3>
         <div class="kpi">{{ num(home.orgCount ?? 0) }}</div>
-        <div class="kpi-sub">{{ home.pilots }} pilot · {{ home.paying }} con plan</div>
+        <div class="kpi-sub">{{ home.pilots }} pilot · {{ home.orgsWithPlan }} con plan</div>
       </div>
       <div v-if="home.scans7d != null" class="card">
         <h3>Scans 7d</h3>
@@ -34,8 +34,8 @@
     <div class="grid g-3" style="margin-top:14px">
       <div class="card">
         <h3>Ledger del mes</h3>
-        <div class="kpi">{{ money(home.ledgerMonth ?? 0) }}</div>
-        <div class="kpi-sub">MRR manual registrado</div>
+        <div class="kpi">{{ ledgerLabel }}</div>
+        <div class="kpi-sub">{{ ledgerSub }}</div>
       </div>
       <div v-if="home.runningScans != null" class="card">
         <h3>Scans en curso</h3>
@@ -62,16 +62,17 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api/client'
 import { money, num } from '@/lib/format'
-import type { Deal, Overview } from '@/types'
+import type { Overview } from '@/types'
 
 interface HomeSnapshot {
   orgCount: number | null
-  paying: number
+  orgsWithPlan: number
   pilots: number
   scans7d: number | null
   wau: number | null
   openDeals: number | null
   ledgerMonth: number | null
+  ledgerWired: boolean
   runningScans: number | null
   orphaned: number | null
   billingMode: string
@@ -90,44 +91,33 @@ const realAlerts = computed(() =>
   (home.value?.alerts || []).filter((a) => a.title !== 'Pre-revenue mode'),
 )
 
-function currentMonthPrefix(): string {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  return `${y}-${m}`
-}
+const ledgerLabel = computed(() => {
+  if (!home.value?.ledgerWired) return 'Sin dato'
+  return money(home.value.ledgerMonth ?? 0)
+})
 
-function sumLedgerMonth(items: { period_month: string; mrr_usd: number }[]): number {
-  const prefix = currentMonthPrefix()
-  return items
-    .filter((e) => String(e.period_month).startsWith(prefix))
-    .reduce((sum, e) => sum + e.mrr_usd, 0)
-}
+const ledgerSub = computed(() => {
+  if (!home.value?.ledgerWired) return 'Ledger no conectado'
+  return 'MRR manual registrado'
+})
 
 onMounted(async () => {
   loading.value = true
   loadError.value = false
   try {
-    const [overview, deals, manual, ops] = await Promise.all([
-      api<Overview>('/overview'),
-      api<{ items: Deal[] }>('/pipeline/deals'),
-      api<{ items: { period_month: string; mrr_usd: number }[] }>('/revenue/manual'),
-      api<{ arq_depth: number; orphaned_running: number }>('/ops/platform'),
-    ])
-
-    const openDeals = deals.items.filter((d) => d.stage !== 'won' && d.stage !== 'lost').length
-    const orgCount = overview.paying_logos + overview.pilots
+    const overview = await api<Overview>('/overview')
 
     home.value = {
-      orgCount: orgCount,
-      paying: overview.paying_logos,
+      orgCount: overview.org_count ?? overview.paying_logos + overview.pilots,
+      orgsWithPlan: overview.orgs_with_plan ?? overview.paying_logos,
       pilots: overview.pilots,
       scans7d: overview.scans_7d ?? null,
       wau: overview.wau_orgs ?? null,
-      openDeals,
-      ledgerMonth: sumLedgerMonth(manual.items),
-      runningScans: ops.arq_depth ?? null,
-      orphaned: ops.orphaned_running ?? null,
+      openDeals: overview.open_deals ?? null,
+      ledgerMonth: overview.ledger_month_usd ?? null,
+      ledgerWired: overview.ledger_wired ?? false,
+      runningScans: overview.arq_depth ?? null,
+      orphaned: overview.orphaned_running ?? null,
       billingMode: overview.billing_mode,
       alerts: overview.alerts,
     }

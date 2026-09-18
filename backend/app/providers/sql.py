@@ -58,6 +58,31 @@ def _parse_allowed_targets(raw: str | None) -> list[str]:
     return [entry_to_display(e) for e in parse_allowed_targets(raw)]
 
 
+def _month_start(day: date | None = None) -> date:
+    ref = day or date.today()
+    return date(ref.year, ref.month, 1)
+
+
+async def _ledger_month_usd(session: Any) -> float:
+    month_key = _month_start().strftime("%Y-%m")
+    r = await session.execute(
+        text(
+            "SELECT COALESCE(SUM(mrr_usd), 0) "
+            "FROM founder.manual_revenue "
+            "WHERE to_char(period_month, 'YYYY-MM') = :month_key"
+        ),
+        {"month_key": month_key},
+    )
+    return float(r.scalar_one())
+
+
+async def _open_deals_count(session: Any) -> int:
+    r = await session.execute(
+        text("SELECT COUNT(*) FROM founder.deal WHERE stage NOT IN ('won', 'lost')")
+    )
+    return int(r.scalar_one())
+
+
 def _row_to_org(row: Any) -> dict[str, Any]:
     last_active = row.last_active_at
     last_active_days = _days_ago(last_active)
@@ -106,13 +131,15 @@ class SqlProvider:
 
     async def overview(self) -> dict[str, Any]:
         orgs = await self._orgs()
-        paying = [o for o in orgs if o["stage"] != "pilot"]
+        with_plan = [o for o in orgs if o["stage"] != "pilot"]
         pilots = len([o for o in orgs if o["stage"] == "pilot"])
-        mrr = 0.0
         factory = session_factory()
         async with factory() as session:
             ops = (await session.execute(text("SELECT * FROM founder.v_platform_scan_ops"))).one()
             usage = (await session.execute(text("SELECT * FROM founder.v_usage_platform"))).one()
+            ledger_month = await _ledger_month_usd(session)
+            open_deals = await _open_deals_count(session)
+        mrr = ledger_month
         alerts = []
         if ops.orphaned_running:
             alerts.append({
@@ -127,31 +154,33 @@ class SqlProvider:
                 "title": f"{len(risky)} orgs en riesgo",
                 "body": "Sin scan reciente o uso bajo",
             })
-        alerts.append({
-            "severity": "info",
-            "title": "Pre-revenue mode",
-            "body": "MRR=0 hasta Stripe (F3). Datos de uso/ops son reales.",
-        })
         return {
             "dataset": self.dataset,
             "data_source": "sql",
-            "arr": 0.0,
+            "arr": kpis.arr(mrr),
             "mrr": mrr,
-            "net_new_mrr": 0.0,
-            "paying_logos": len(paying),
+            "net_new_mrr": None,
+            "paying_logos": len(with_plan),
+            "orgs_with_plan": len(with_plan),
+            "org_count": len(orgs),
             "pilots": pilots,
-            "gross_margin": 0.0,
-            "nrr": 0.0,
-            "logo_churn": 0.0,
-            "revenue_churn": 0.0,
-            "platform_uptime": 0.994,
+            "gross_margin": None,
+            "nrr": None,
+            "logo_churn": None,
+            "revenue_churn": None,
+            "platform_uptime": None,
             "arq_depth": ops.running_scans,
-            "mrr_trend": [0.0] * 12,
-            "goal_net_new": {"current": 0.0, "target": 25000.0},
+            "mrr_trend": None,
+            "goal_net_new": {"current": None, "target": 25000.0},
             "alerts": alerts,
             "billing_mode": "manual_ledger",
+            "ledger_wired": True,
+            "ledger_month_usd": ledger_month,
+            "open_deals": open_deals,
+            "stripe_wired": False,
             "scans_7d": ops.scans_7d,
             "wau_orgs": usage.wau_orgs,
+            "orphaned_running": ops.orphaned_running,
         }
 
     async def waterfall(self) -> dict[str, Any]:

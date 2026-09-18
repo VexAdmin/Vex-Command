@@ -115,6 +115,32 @@ class World:
 
     def overview(self) -> dict:
         paying = [o for o in self.orgs if o.stage != "pilot"]
+        open_deals = sum(1 for deal in self.deals if deal.stage not in ("won", "lost"))
+        if self.dataset == "pre_revenue":
+            return {
+                "dataset": self.dataset,
+                "arr": 0.0,
+                "mrr": 0.0,
+                "net_new_mrr": None,
+                "paying_logos": len(paying),
+                "orgs_with_plan": len(paying),
+                "org_count": len(self.orgs),
+                "pilots": self.pilots,
+                "gross_margin": None,
+                "nrr": None,
+                "logo_churn": None,
+                "revenue_churn": None,
+                "platform_uptime": None,
+                "arq_depth": self.ops["arq_depth"],
+                "mrr_trend": None,
+                "goal_net_new": {"current": None, "target": 25000.0},
+                "alerts": self.alerts,
+                "billing_mode": "manual",
+                "ledger_wired": True,
+                "ledger_month_usd": 0.0,
+                "open_deals": open_deals,
+                "stripe_wired": False,
+            }
         mrr = sum(o.mrr for o in paying)
         gemini = sum(o.cogs_gemini for o in paying)
         infra = sum(o.cogs_infra for o in paying)

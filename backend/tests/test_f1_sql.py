@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from datetime import date
 from fastapi.testclient import TestClient
 
 from app.config import settings
@@ -33,9 +34,36 @@ def test_sql_overview_pre_revenue(sql_client):
     assert r.status_code == 200
     body = r.json()
     assert body["dataset"] == "pre_revenue"
-    assert body["mrr"] == 0
+    assert body["ledger_wired"] is True
+    assert isinstance(body["ledger_month_usd"], (int, float))
+    assert body["mrr"] == body["ledger_month_usd"]
     assert body["data_source"] == "sql"
     assert body["paying_logos"] >= 1
+    assert body["gross_margin"] is None
+    assert body["nrr"] is None
+    assert body["stripe_wired"] is False
+    assert body["open_deals"] >= 0
+
+
+def test_sql_overview_ledger_month(sql_client):
+    month = date.today().replace(day=1).isoformat()
+    before = sql_client.get("/api/founder/v1/overview").json()["ledger_month_usd"]
+    post = sql_client.post(
+        "/api/founder/v1/revenue/manual",
+        json={
+            "period_month": month,
+            "mrr_usd": 1500,
+            "channel": "direct",
+            "reason": "Overview ledger test",
+        },
+    )
+    assert post.status_code == 200
+    overview = sql_client.get("/api/founder/v1/overview")
+    assert overview.status_code == 200
+    body = overview.json()
+    assert body["ledger_month_usd"] == before + 1500
+    assert body["mrr"] == before + 1500
+    assert body["arr"] == (before + 1500) * 12
 
 
 def test_sql_customers_no_findings_payload(sql_client):

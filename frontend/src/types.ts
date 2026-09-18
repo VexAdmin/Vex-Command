@@ -26,23 +26,30 @@ export interface Org {
 
 export interface Overview {
   dataset: string
-  arr: number
-  mrr: number
-  net_new_mrr: number
+  arr: number | null
+  mrr: number | null
+  net_new_mrr: number | null
   paying_logos: number
+  orgs_with_plan?: number
+  org_count?: number
   pilots: number
-  gross_margin: number
-  nrr: number
-  logo_churn: number
-  revenue_churn: number
-  platform_uptime: number
+  gross_margin: number | null
+  nrr: number | null
+  logo_churn: number | null
+  revenue_churn: number | null
+  platform_uptime: number | null
   arq_depth: number
-  mrr_trend: number[]
-  goal_net_new: { current: number; target: number }
+  mrr_trend: number[] | null
+  goal_net_new: { current: number | null; target: number }
   alerts: { severity: string; title: string; body: string }[]
   billing_mode: string
+  ledger_wired?: boolean
+  ledger_month_usd?: number | null
+  open_deals?: number | null
+  stripe_wired?: boolean
   scans_7d?: number
   wau_orgs?: number
+  orphaned_running?: number | null
 }
 
 export interface Deal {

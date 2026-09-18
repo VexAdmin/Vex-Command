@@ -8,6 +8,7 @@ from app.config import settings
 from app.founder_auth import ACCESS_MAX_AGE
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary
 from app.seed import Deal, World, build_world, deal_dict, org_dict
+from app import kpis
 
 
 class FounderProvider(Protocol):
@@ -46,8 +47,42 @@ class MockProvider:
         self.dataset = world.dataset
         self._manual_revenue: list[dict[str, Any]] = []
 
+    def _ledger_month_usd(self) -> float:
+        prefix = date.today().strftime("%Y-%m")
+        return sum(
+            float(entry["mrr_usd"])
+            for entry in self._manual_revenue
+            if str(entry["period_month"]).startswith(prefix)
+        )
+
     async def overview(self) -> dict[str, Any]:
-        return self._world.overview()
+        base = self._world.overview()
+        billing_mode = base.get("billing_mode")
+        if billing_mode not in ("manual", "manual_ledger"):
+            return base
+        ledger_month = self._ledger_month_usd()
+        open_deals = sum(1 for deal in self._world.deals if deal.stage not in ("won", "lost"))
+        base.update(
+            {
+                "ledger_wired": True,
+                "ledger_month_usd": ledger_month,
+                "mrr": ledger_month,
+                "arr": kpis.arr(ledger_month),
+                "net_new_mrr": None,
+                "gross_margin": None,
+                "nrr": None,
+                "logo_churn": None,
+                "revenue_churn": None,
+                "platform_uptime": None,
+                "mrr_trend": None,
+                "goal_net_new": {"current": None, "target": 25000.0},
+                "org_count": len(self._world.orgs),
+                "orgs_with_plan": base.get("paying_logos", 0),
+                "open_deals": open_deals,
+                "stripe_wired": False,
+            }
+        )
+        return base
 
     async def waterfall(self) -> dict[str, Any]:
         return self._world.waterfall
