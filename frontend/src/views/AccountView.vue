@@ -42,7 +42,7 @@
               type="button"
               :disabled="targetsBusy"
               title="Quitar target"
-              @click="removeTarget(t)"
+              @click="requestRemoveTarget(t)"
             >×</button>
           </div>
         </div>
@@ -95,11 +95,59 @@
       </div>
       <div v-if="!data.notes.length" class="empty">Sin notas todavía.</div>
     </div>
+
+    <div
+      v-if="removePending"
+      class="modal-back"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="remove-target-title"
+      @click.self="cancelRemoveTarget"
+    >
+      <div class="modal remove-target-modal">
+        <h3 id="remove-target-title">Quitar target autorizado</h3>
+        <p class="lede">
+          Vas a quitar <span class="mono">{{ removePending }}</span> de
+          <b>{{ data.org.name }}</b>. Los scans contra este dominio quedarán bloqueados si la org usa allowlist estricto.
+        </p>
+        <p v-if="isLastTargetPending" class="remove-target-last-warn">
+          Es el último target de la lista. Sin targets autorizados, los scans pueden quedar bloqueados por completo.
+        </p>
+        <label class="remove-target-label" for="remove-target-confirm">
+          Escribe <span class="mono">eliminar</span> para confirmar
+        </label>
+        <input
+          id="remove-target-confirm"
+          ref="removeConfirmInput"
+          v-model="removeConfirmText"
+          class="remove-target-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="eliminar"
+          :disabled="targetsBusy"
+          @keydown.enter.prevent="confirmRemoveTarget"
+        />
+        <div class="remove-target-actions">
+          <button class="btn" type="button" :disabled="targetsBusy" @click="cancelRemoveTarget">
+            Cancelar
+          </button>
+          <button
+            class="btn danger"
+            type="button"
+            :disabled="targetsBusy || !removeConfirmReady"
+            @click="confirmRemoveTarget"
+          >
+            Quitar target
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '@/api/client'
 import { money, pct } from '@/lib/format'
@@ -138,6 +186,20 @@ const loadError = ref(false)
 const newTarget = ref('')
 const targetsBusy = ref(false)
 const targetsError = ref('')
+const removePending = ref<string | null>(null)
+const removeConfirmText = ref('')
+const removeConfirmInput = ref<HTMLInputElement | null>(null)
+
+const REMOVE_CONFIRM_WORD = 'eliminar'
+
+const removeConfirmReady = computed(
+  () => removeConfirmText.value.trim().toLowerCase() === REMOVE_CONFIRM_WORD,
+)
+
+const isLastTargetPending = computed(() => {
+  if (!data.value || !removePending.value) return false
+  return data.value.authorized_targets.length === 1
+})
 
 function normalizePreview(entry: string): string {
   const trimmed = entry.trim()
@@ -212,15 +274,23 @@ async function addTarget() {
   }
 }
 
-async function removeTarget(entry: string) {
-  if (!data.value) return
-  const isLast = data.value.authorized_targets.length === 1
-  if (isLast) {
-    const ok = window.confirm(
-      'Este es el último target autorizado. Si la org usa modo allowlist estricto, los scans quedarán bloqueados. ¿Continuar?'
-    )
-    if (!ok) return
-  }
+async function requestRemoveTarget(entry: string) {
+  if (targetsBusy.value) return
+  removePending.value = entry
+  removeConfirmText.value = ''
+  await nextTick()
+  removeConfirmInput.value?.focus()
+}
+
+function cancelRemoveTarget() {
+  if (targetsBusy.value) return
+  removePending.value = null
+  removeConfirmText.value = ''
+}
+
+async function confirmRemoveTarget() {
+  if (!data.value || !removePending.value || !removeConfirmReady.value) return
+  const entry = removePending.value
   targetsBusy.value = true
   targetsError.value = ''
   try {
@@ -229,6 +299,8 @@ async function removeTarget(entry: string) {
       body: JSON.stringify({ entry }),
     })
     data.value.authorized_targets = result.authorized_targets
+    removePending.value = null
+    removeConfirmText.value = ''
   } catch (e) {
     targetsError.value = targetRemoveErrorMessage(e)
   } finally {
@@ -248,6 +320,14 @@ async function saveNote() {
 
 onMounted(load)
 watch(() => route.params.id, load)
+watch(removePending, (pending, _, onCleanup) => {
+  if (!pending) return
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') cancelRemoveTarget()
+  }
+  document.addEventListener('keydown', onKey)
+  onCleanup(() => document.removeEventListener('keydown', onKey))
+})
 </script>
 
 <style scoped>
@@ -302,5 +382,39 @@ watch(() => route.params.id, load)
   min-width: 28px;
   padding: 2px 8px;
   line-height: 1.2;
+}
+.remove-target-modal h3 {
+  margin: 0 0 10px;
+}
+.remove-target-last-warn {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(180, 35, 24, 0.08);
+  color: #9a1f14;
+  font-size: 0.9rem;
+}
+.remove-target-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.remove-target-input {
+  width: 100%;
+  margin-bottom: 14px;
+}
+.remove-target-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.btn.danger {
+  background: #b42318;
+  color: #fff;
+  border-color: #b42318;
+}
+.btn.danger:disabled {
+  opacity: 0.45;
 }
 </style>
