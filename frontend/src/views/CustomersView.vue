@@ -1,5 +1,7 @@
 <template>
-  <div>
+  <div v-if="loadError" class="empty">No se pudo cargar. Reintenta.</div>
+  <div v-else-if="loading && !items.length" class="empty">Cargando…</div>
+  <div v-else>
     <div class="hero-row">
       <div>
         <h1>Cuentas</h1>
@@ -28,8 +30,7 @@
       </select>
       <button class="btn" type="button" @click="load(0)">Filtrar</button>
     </div>
-    <div v-if="loadError" class="empty">No se pudo cargar. Reintenta.</div>
-    <div v-else class="card">
+    <div class="card">
       <table>
         <thead>
           <tr>

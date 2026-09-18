@@ -528,14 +528,14 @@ class SqlProvider:
         return {
             "health": health_payload.get("status", "unknown"),
             "version": health_payload.get("version", "—"),
-            "uptime_30d": 0.994,
+            "uptime_30d": None,
             "arq_depth": row.running_scans,
             "orphaned_running": row.orphaned_running,
-            "errors_5xx_24h": 0,
+            "errors_5xx_24h": None,
             "alembic_head": alembic or "—",
-            "playwright": "—",
-            "interactsh": "—",
-            "gemini_24h": 0,
+            "playwright": None,
+            "interactsh": None,
+            "gemini_24h": None,
             "raptor_health_url": settings.raptor_health_url,
         }
 
@@ -576,7 +576,7 @@ class SqlProvider:
             "quarter": okr_rows[0].quarter if okr_rows else "Q3 2026",
             "okrs": okrs,
             "net_new": net_new,
-            "rules": self._fallback._world.goals["rules"],
+            "rules": [],
         }
 
     async def update_okr(self, okr_id: int, target: float, operator: Operator) -> dict[str, Any]:

@@ -105,3 +105,23 @@ def test_sql_customer_scan_metrics_fallback(sql_client):
     body = r.json()
     assert body["usage_30d"]["scans"] >= 1
     assert len(body["recent_scans"]) >= 1
+
+
+def test_sql_ops_unwired_metrics_are_null(sql_client):
+    r = sql_client.get("/api/founder/v1/ops/platform")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["uptime_30d"] is None
+    assert body["errors_5xx_24h"] is None
+    assert body["playwright"] is None
+    assert body["interactsh"] is None
+    assert body["gemini_24h"] is None
+    assert isinstance(body["arq_depth"], int)
+    assert body["health"] in {"ok", "unknown"}
+
+
+def test_sql_goals_no_mock_alert_rules(sql_client):
+    r = sql_client.get("/api/founder/v1/goals")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["rules"] == []

@@ -78,7 +78,6 @@ interface GoalsPayload {
   quarter: string
   okrs: Okr[]
   net_new?: { current: number; target: number }
-  rules: { name: string; enabled: boolean }[]
 }
 
 const g = ref<GoalsPayload | null>(null)
