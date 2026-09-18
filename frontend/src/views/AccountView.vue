@@ -32,13 +32,35 @@
       </div>
       <div class="card">
         <h3>Targets autorizados</h3>
-        <p class="lede" style="margin-bottom:10px">URLs autorizadas para pentest (solo lectura).</p>
+        <p class="lede" style="margin-bottom:10px">URLs y dominios autorizados para pentest. Los cambios se guardan en Raptor.</p>
+        <div v-if="targetsError" class="targets-error">{{ targetsError }}</div>
         <div v-if="data.authorized_targets.length" class="target-list">
-          <div v-for="(t, i) in data.authorized_targets" :key="i" class="list-row">
+          <div v-for="(t, i) in data.authorized_targets" :key="i" class="list-row target-row">
             <span class="mono">{{ t }}</span>
+            <button
+              class="btn target-remove"
+              type="button"
+              :disabled="targetsBusy"
+              title="Quitar target"
+              @click="removeTarget(t)"
+            >×</button>
           </div>
         </div>
         <div v-else class="empty">Sin restricción configurada.</div>
+        <form class="filters target-form" @submit.prevent="addTarget">
+          <input
+            v-model="newTarget"
+            placeholder="https://ejemplo.com o dominio"
+            style="flex:1;min-width:180px"
+            :disabled="targetsBusy"
+          />
+          <button class="btn primary" type="submit" :disabled="targetsBusy || !newTarget.trim()">Agregar</button>
+        </form>
+        <p v-if="previewText" class="target-preview">Vista previa: <span class="mono">{{ previewText }}</span></p>
+        <div v-for="(w, i) in previewWarnings" :key="i" class="target-warning">
+          <span class="tag warn">{{ w }}</span>
+        </div>
+        <p v-if="targetsBusy" class="kpi-sub">Guardando…</p>
       </div>
     </div>
     <div class="card" style="margin-top:14px">
@@ -77,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '@/api/client'
 import { money, pct } from '@/lib/format'
@@ -101,10 +123,51 @@ interface Account {
   next_step: string
 }
 
+interface TargetsMutationResult {
+  ok: boolean
+  entry: string
+  authorized_targets: string[]
+  warnings?: string[]
+}
+
 const route = useRoute()
 const data = ref<Account | null>(null)
 const note = ref('')
 const loadError = ref(false)
+const newTarget = ref('')
+const targetsBusy = ref(false)
+const targetsError = ref('')
+
+function normalizePreview(entry: string): string {
+  const trimmed = entry.trim()
+  if (!trimmed) return ''
+  if (/^[0-9a-fA-F:.]+\/\d{1,3}$/.test(trimmed)) return trimmed
+  try {
+    const url = trimmed.includes('://') ? trimmed : `https://${trimmed}`
+    const host = new URL(url).hostname.toLowerCase()
+    return host || trimmed.toLowerCase()
+  } catch {
+    return trimmed.toLowerCase()
+  }
+}
+
+const previewText = computed(() => normalizePreview(newTarget.value))
+
+const previewWarnings = computed(() => {
+  const p = previewText.value
+  if (!p) return []
+  const warnings: string[] = []
+  if (p.includes('metadata') || p === 'metadata.google.internal' || p === 'metadata.goog') {
+    warnings.push('Hostname de metadata cloud — revisa antes de autorizar.')
+  }
+  if (p.startsWith('169.254.')) {
+    warnings.push('IP link-local (169.254.x.x) — típica de metadata cloud.')
+  }
+  if (p === '127.0.0.1' || p === 'localhost') {
+    warnings.push('IP loopback — solo válida en labs controlados.')
+  }
+  return warnings
+})
 
 function formatScanDate(iso: string): string {
   const d = new Date(iso)
@@ -126,6 +189,49 @@ async function load() {
     data.value = await api<Account>(`/customers/${route.params.id}`)
   } catch {
     loadError.value = true
+  }
+}
+
+async function addTarget() {
+  const entry = newTarget.value.trim()
+  if (!entry || !data.value) return
+  targetsBusy.value = true
+  targetsError.value = ''
+  try {
+    const result = await api<TargetsMutationResult>(`/customers/${route.params.id}/targets`, {
+      method: 'POST',
+      body: JSON.stringify({ entry }),
+    })
+    data.value.authorized_targets = result.authorized_targets
+    newTarget.value = ''
+  } catch (e) {
+    targetsError.value = 'No se pudo agregar el target. Verifica el formato.'
+  } finally {
+    targetsBusy.value = false
+  }
+}
+
+async function removeTarget(entry: string) {
+  if (!data.value) return
+  const isLast = data.value.authorized_targets.length === 1
+  if (isLast) {
+    const ok = window.confirm(
+      'Este es el último target autorizado. Si la org usa modo allowlist estricto, los scans quedarán bloqueados. ¿Continuar?'
+    )
+    if (!ok) return
+  }
+  targetsBusy.value = true
+  targetsError.value = ''
+  try {
+    const result = await api<TargetsMutationResult>(`/customers/${route.params.id}/targets`, {
+      method: 'DELETE',
+      body: JSON.stringify({ entry }),
+    })
+    data.value.authorized_targets = result.authorized_targets
+  } catch {
+    targetsError.value = 'No se pudo quitar el target.'
+  } finally {
+    targetsBusy.value = false
   }
 }
 
@@ -170,7 +276,30 @@ watch(() => route.params.id, load)
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.target-list .list-row {
-  justify-content: flex-start;
+.target-list .list-row,
+.target-row {
+  justify-content: space-between;
+  gap: 8px;
+}
+.target-form {
+  margin-top: 12px;
+}
+.target-preview {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+.target-warning {
+  margin-top: 6px;
+}
+.targets-error {
+  color: #b42318;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+.target-remove {
+  min-width: 28px;
+  padding: 2px 8px;
+  line-height: 1.2;
 }
 </style>

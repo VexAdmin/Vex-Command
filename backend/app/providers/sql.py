@@ -15,6 +15,7 @@ from app.founder_auth import ACCESS_MAX_AGE
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary, row_to_deal
 from app.seed import build_world
 from app.providers.mock import MockProvider
+from app.target_policy import entry_to_display, parse_allowed_targets
 
 logger = logging.getLogger("vex.command.sql")
 
@@ -54,9 +55,7 @@ def _risk(health: int) -> str:
 
 
 def _parse_allowed_targets(raw: str | None) -> list[str]:
-    if not raw or not raw.strip():
-        return []
-    return [part.strip() for part in raw.split(",") if part.strip()]
+    return [entry_to_display(e) for e in parse_allowed_targets(raw)]
 
 
 def _row_to_org(row: Any) -> dict[str, Any]:

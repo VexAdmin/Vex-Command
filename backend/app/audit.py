@@ -18,12 +18,16 @@ async def record(
     operator: Operator,
     action: str,
     org_id: int | None = None,
+    detail: str | None = None,
 ) -> None:
+    path = str(request.url.path)
+    if detail:
+        path = f"{path} — {detail}"
     row = {
         "actor_email": operator.email,
         "action": action,
         "org_id": org_id,
-        "path": str(request.url.path),
+        "path": path,
         "ip": request.client.host if request.client else None,
     }
     _MEMORY.insert(0, row)

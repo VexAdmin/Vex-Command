@@ -48,5 +48,25 @@ def enforce_login_rate_limit(request: Request) -> None:
     hits.append(now)
 
 
+TARGETS_WINDOW_SECONDS = 300
+TARGETS_MAX_MUTATIONS = 10
+
+_targets_hits: dict[str, list[float]] = defaultdict(list)
+
+
+def enforce_targets_rate_limit(operator_email: str, org_id: int) -> None:
+    key = f"{operator_email.lower()}:{org_id}"
+    now = time.monotonic()
+    hits = _targets_hits[key]
+    hits[:] = [t for t in hits if now - t < TARGETS_WINDOW_SECONDS]
+    if len(hits) >= TARGETS_MAX_MUTATIONS:
+        raise HTTPException(
+            status_code=429,
+            detail="too many target mutations, try again later",
+        )
+    hits.append(now)
+
+
 def reset_for_tests() -> None:
     _hits.clear()
+    _targets_hits.clear()

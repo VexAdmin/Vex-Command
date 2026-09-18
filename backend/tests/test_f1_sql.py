@@ -65,7 +65,8 @@ def test_sql_customer_scans_and_targets(sql_client):
     assert r.status_code == 200
     body = r.json()
     assert body["usage_30d"]["scans"] >= 2
-    assert "https://harbor.test" in body["authorized_targets"]
+    assert "harbor.test" in body["authorized_targets"]
+    assert "api.harbor.test" in body["authorized_targets"]
     assert len(body["recent_scans"]) >= 2
     assert "findings" not in str(body["recent_scans"]).lower()
 

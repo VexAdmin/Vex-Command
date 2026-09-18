@@ -16,6 +16,8 @@ from app.config import settings
 from app.founder_auth import router as founder_auth_router
 from app.db import close_db, init_db
 from app.providers import build_provider
+from app.rate_limit import enforce_targets_rate_limit
+from app.targets_service import access_token_from_request, add_target, remove_target
 
 OperatorDep = Annotated[Operator, Depends(require_operator)]
 
@@ -148,6 +150,44 @@ async def customer(org_id: int, request: Request, operator: OperatorDep):
     if not data:
         raise HTTPException(404, "org not found")
     return data
+
+
+@app.post("/api/founder/v1/customers/{org_id}/targets")
+async def add_customer_target(org_id: int, request: Request, operator: OperatorDep):
+    enforce_targets_rate_limit(operator.email, org_id)
+    body = await request.json()
+    entry = (body.get("entry") or "").strip()
+    if not entry:
+        raise HTTPException(400, "entry required")
+    token = access_token_from_request(request)
+    result = await add_target(org_id, entry, token)
+    await record(
+        request,
+        operator,
+        "customers.targets.add",
+        org_id,
+        detail=f"add {result['entry']} | {result['diff']['before']} -> {result['diff']['after']}",
+    )
+    return result
+
+
+@app.delete("/api/founder/v1/customers/{org_id}/targets")
+async def remove_customer_target(org_id: int, request: Request, operator: OperatorDep):
+    enforce_targets_rate_limit(operator.email, org_id)
+    body = await request.json()
+    entry = (body.get("entry") or "").strip()
+    if not entry:
+        raise HTTPException(400, "entry required")
+    token = access_token_from_request(request)
+    result = await remove_target(org_id, entry, token)
+    await record(
+        request,
+        operator,
+        "customers.targets.remove",
+        org_id,
+        detail=f"remove {result['entry']} | {result['diff']['before']} -> {result['diff']['after']}",
+    )
+    return result
 
 
 @app.post("/api/founder/v1/customers/{org_id}/notes")
