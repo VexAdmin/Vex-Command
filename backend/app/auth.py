@@ -97,6 +97,38 @@ async def _validate_session_with_raptor(token: str) -> Operator:
     return Operator(email=email, role=role, org_id=org_id)
 
 
+def resolve_access_token(
+    authorization: str | None,
+    founder_access: str | None,
+) -> str | None:
+    """Same credential resolution as require_operator — keep Raptor proxy in sync."""
+    if (
+        authorization
+        and authorization.lower().startswith("bearer ")
+        and settings.app_env not in ("prod", "staging")
+    ):
+        return authorization.split(" ", 1)[1].strip()
+    if founder_access:
+        return founder_access
+    return None
+
+
+def session_token_required(
+    authorization: str | None,
+    founder_access: str | None,
+) -> str:
+    token = resolve_access_token(authorization, founder_access)
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "auth",
+                "message": "Sesión expirada o sin permisos. Vuelve a iniciar sesión.",
+            },
+        )
+    return token
+
+
 async def require_operator(
     authorization: Annotated[str | None, Header()] = None,
     founder_access: Annotated[str | None, Cookie()] = None,
@@ -105,20 +137,6 @@ async def require_operator(
         if settings.app_env in ("prod", "staging"):
             raise HTTPException(status_code=500, detail="FOUNDER_AUTH_MODE=mock forbidden in prod")
         return Operator(email="edu@vexraptor.com", role="admin", org_id=None)
-    token: str | None = None
-    # S7: the Bearer/localStorage token path is a dev convenience only — an XSS
-    # on the SPA can read localStorage but not an httpOnly cookie. Disabled in
-    # prod/staging so cookies (set by Command, never touched by JS) are the
-    # only accepted credential.
-    if (
-        authorization
-        and authorization.lower().startswith("bearer ")
-        and settings.app_env not in ("prod", "staging")
-    ):
-        token = authorization.split(" ", 1)[1].strip()
-    elif founder_access:
-        token = founder_access
-    if not token:
-        raise HTTPException(status_code=401, detail="operator token required")
+    token = session_token_required(authorization, founder_access)
     operator_from_access_token(token)
     return await _validate_session_with_raptor(token)

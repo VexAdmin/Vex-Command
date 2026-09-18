@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from fastapi import HTTPException
 
 
@@ -45,6 +47,22 @@ def policy_http_error(exc: ValueError) -> HTTPException:
     )
 
 
+def _raptor_detail_message(body: str) -> str | None:
+    if not body:
+        return None
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return body.strip()[:200] or None
+    if isinstance(payload, dict):
+        detail = payload.get("detail")
+        if isinstance(detail, str):
+            return detail
+        if isinstance(detail, dict):
+            return detail.get("message") or detail.get("code")
+    return None
+
+
 def raptor_http_error(
     status: int,
     *,
@@ -52,6 +70,7 @@ def raptor_http_error(
     action: str,
     body: str = "",
 ) -> HTTPException:
+    upstream = _raptor_detail_message(body)
     if status == 401:
         return HTTPException(
             status_code=401,
@@ -65,7 +84,8 @@ def raptor_http_error(
             status_code=403,
             detail={
                 "code": "raptor_forbidden",
-                "message": "Sin permisos para editar la configuración de la organización en Raptor.",
+                "message": upstream
+                or "Sin permisos para editar la configuración de la organización en Raptor.",
             },
         )
     if status == 404:
@@ -73,7 +93,7 @@ def raptor_http_error(
             status_code=404,
             detail={
                 "code": "org_not_found",
-                "message": "Organización no encontrada en Raptor.",
+                "message": upstream or "Organización no encontrada en Raptor.",
             },
         )
     if status == 422:
@@ -81,14 +101,14 @@ def raptor_http_error(
             status_code=422,
             detail={
                 "code": "raptor_rejected",
-                "message": "Raptor rechazó el formato de la lista autorizada.",
+                "message": upstream or "Raptor rechazó el formato de la lista autorizada.",
             },
         )
     return HTTPException(
         status_code=502,
         detail={
             "code": "raptor_unavailable",
-            "message": "Raptor no disponible. Reintenta más tarde.",
+            "message": upstream or "Raptor no disponible. Reintenta más tarde.",
             "raptor_status": status,
             "raptor_action": action,
             "org_id": org_id,

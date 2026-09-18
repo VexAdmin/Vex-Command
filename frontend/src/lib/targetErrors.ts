@@ -23,7 +23,13 @@ export function targetAddErrorMessage(error: unknown): string {
         return 'Organización no encontrada en Raptor.'
       default:
         if (error.userMessage) return error.userMessage
+        if (error.message && !/^\d{3}\s\/customers\//.test(error.message)) {
+          return error.message
+        }
     }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message
   }
   return 'No se pudo agregar el target.'
 }
@@ -43,7 +49,13 @@ export function targetRemoveErrorMessage(error: unknown): string {
         return 'Demasiados cambios seguidos. Espera unos minutos.'
       default:
         if (error.userMessage) return error.userMessage
+        if (error.message && !/^\d{3}\s\/customers\//.test(error.message)) {
+          return error.message
+        }
     }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message
   }
   return 'No se pudo quitar el target.'
 }

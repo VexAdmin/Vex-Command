@@ -2,6 +2,7 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.audit import _MEMORY
@@ -70,6 +71,28 @@ def test_add_target_proxies_patch(get_mock, patch_mock, client):
     assert args[0] == 1
     assert "api.harbor.test" in args[1]
     assert args[2] == "test-token"
+
+
+@patch("app.targets_service.patch_org_allowed_targets", new_callable=AsyncMock)
+@patch("app.targets_service.fetch_org_allowed_targets", new_callable=AsyncMock)
+def test_remove_target_reads_sql_allowlist_in_sql_mode(fetch_mock, patch_mock, client, monkeypatch):
+    monkeypatch.setattr(settings, "data_source", "sql")
+    fetch_mock.return_value = "jackontheroad.com"
+    patch_mock.return_value = None
+    r = client.request(
+        "DELETE",
+        "/api/founder/v1/customers/13/targets",
+        content=json.dumps({"entry": "jackontheroad.com"}),
+        headers={
+            "Authorization": "Bearer test-token",
+            "Content-Type": "application/json",
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["authorized_targets"] == []
+    fetch_mock.assert_awaited_once_with(13)
+    patch_mock.assert_awaited_once_with(13, "", "test-token")
 
 
 @patch("app.targets_service.patch_org_allowed_targets", new_callable=AsyncMock)
@@ -175,6 +198,41 @@ def test_audit_recorded_on_remove(get_mock, patch_mock, client):
         },
     )
     assert any(row["action"] == "customers.targets.remove" for row in _MEMORY)
+
+
+@patch("app.targets_service.get_org_allowed_targets", new_callable=AsyncMock)
+def test_add_surfaces_raptor_forbidden(get_mock, client):
+    get_mock.side_effect = HTTPException(
+        status_code=403,
+        detail={
+            "code": "raptor_forbidden",
+            "message": "Insufficient Permissions: Administrator role required.",
+        },
+    )
+    r = client.post(
+        "/api/founder/v1/customers/1/targets",
+        json={"entry": "jackontheroad.com"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert r.status_code == 403
+    detail = r.json()["detail"]
+    assert detail["code"] == "raptor_forbidden"
+    assert "Administrator" in detail["message"]
+
+
+@patch("app.targets_service.get_org_allowed_targets", new_callable=AsyncMock)
+def test_add_surfaces_raptor_org_not_found(get_mock, client):
+    get_mock.side_effect = HTTPException(
+        status_code=404,
+        detail={"code": "org_not_found", "message": "Organización no encontrada en Raptor."},
+    )
+    r = client.post(
+        "/api/founder/v1/customers/99/targets",
+        json={"entry": "jackontheroad.com"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert r.status_code == 404
+    assert r.json()["detail"]["code"] == "org_not_found"
 
 
 @patch("app.targets_service.patch_org_allowed_targets", new_callable=AsyncMock)

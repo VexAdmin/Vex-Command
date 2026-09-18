@@ -26,4 +26,16 @@ describe('targetErrors', () => {
     })
     expect(targetRemoveErrorMessage(err)).toBe('Ese target no está en la lista autorizada.')
   })
+
+  it('falls back to upstream message when code is unknown', () => {
+    const err = new ApiError(403, '/customers/1/targets', {
+      message: 'Insufficient Permissions: Administrator role required.',
+    })
+    expect(targetAddErrorMessage(err)).toBe('Insufficient Permissions: Administrator role required.')
+  })
+
+  it('maps string FastAPI detail to user-visible message', () => {
+    const err = new ApiError(500, '/customers/1/targets', 'Internal Server Error')
+    expect(targetAddErrorMessage(err)).toBe('Internal Server Error')
+  })
 })

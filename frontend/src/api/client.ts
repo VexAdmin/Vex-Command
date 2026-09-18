@@ -51,7 +51,10 @@ async function fetchApi(path: string, init?: RequestInit, allowRefresh = true): 
   return res
 }
 
-type ApiErrorDetail = string | { code?: string; message?: string }
+type ApiErrorDetail =
+  | string
+  | { code?: string; message?: string }
+  | Array<{ msg?: string; message?: string }>
 
 export class ApiError extends Error {
   readonly status: number
@@ -74,6 +77,11 @@ function parseApiErrorDetail(detail?: ApiErrorDetail): { code?: string; message?
   if (!detail) return {}
   if (typeof detail === 'string') {
     return { message: detail }
+  }
+  if (Array.isArray(detail)) {
+    const first = detail[0]
+    const message = first?.msg || first?.message
+    return message ? { message } : {}
   }
   return {
     code: detail.code,
