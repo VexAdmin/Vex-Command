@@ -3,7 +3,10 @@
     <aside class="side">
       <div class="brand">
         <img src="/vex-logo.svg" alt="VEX" />
-        <span class="brand-sub">Command</span>
+        <div class="brand-text">
+          <span class="brand-title">VEX Command</span>
+          <span class="brand-sub">Operaciones de plataforma</span>
+        </div>
       </div>
       <div class="nav-scroll">
         <template v-for="section in sections" :key="section.label">
@@ -20,20 +23,17 @@
         </template>
       </div>
       <div class="side-foot">
-        <strong>ops.vexraptor.com</strong>
-        Founder only · never in tenant nav
+        Uso interno · ops.vexraptor.com
       </div>
     </aside>
 
     <div class="main">
       <header class="topbar">
-        <div class="crumb">Founder Console / <b>{{ title }}</b></div>
+        <div class="crumb">VEX Command / <b>{{ title }}</b></div>
         <div class="top-actions">
           <span class="pill"><span class="dot" /> {{ datasetLabel }}</span>
-          <span class="pill mono">FY2026 · USD</span>
-          <button class="btn" type="button" @click="exportCsv">Export CSV</button>
-          <button class="btn primary" type="button" @click="runBrief">Weekly brief</button>
-          <button class="btn" type="button" @click="signOut">Sign out</button>
+          <button class="btn" type="button" @click="exportCsv">Exportar cuentas</button>
+          <button class="btn" type="button" @click="signOut">Salir</button>
         </div>
       </header>
       <div class="content">
@@ -41,11 +41,10 @@
       </div>
     </div>
 
-    <div v-if="brief" class="modal-back" @click.self="brief = null">
+    <div v-if="toast" class="modal-back" @click.self="toast = null">
       <div class="modal">
-        <h3 style="margin:0 0 12px">Weekly brief</h3>
-        <pre>{{ brief }}</pre>
-        <button class="btn primary" type="button" style="margin-top:14px" @click="brief = null">Cerrar</button>
+        <pre>{{ toast }}</pre>
+        <button class="btn primary" type="button" style="margin-top:14px" @click="toast = null">Cerrar</button>
       </div>
     </div>
   </div>
@@ -59,39 +58,34 @@ import { api, exportAccounting, logout } from '@/api/client'
 const router = useRouter()
 
 const route = useRoute()
-const title = computed(() => String(route.meta.title || 'Command Center'))
+const title = computed(() => String(route.meta.title || 'Hoy'))
 const dataset = ref('scale')
-const brief = ref<string | null>(null)
+const toast = ref<string | null>(null)
 
-const datasetLabel = computed(() =>
-  dataset.value === 'pre_revenue' ? 'Pre-revenue · manual ledger' : 'Demo @ 1.000 orgs · ETL −4m',
-)
+const datasetLabel = computed(() => {
+  if (dataset.value === 'pre_revenue') return 'Pre-revenue · ledger manual'
+  if (dataset.value === 'offline') return 'Sin conexión'
+  if (dataset.value === 'scale') return 'Datos de demo'
+  return dataset.value
+})
 
 const sections = [
   {
-    label: 'Business',
+    label: 'Operaciones',
     items: [
-      { to: '/', ico: '01', label: 'Command Center' },
-      { to: '/revenue', ico: '02', label: 'Revenue' },
-      { to: '/customers', ico: '03', label: 'Customers' },
-      { to: '/pipeline', ico: '04', label: 'Pipeline' },
+      { to: '/', ico: '01', label: 'Hoy' },
+      { to: '/customers', ico: '02', label: 'Cuentas' },
+      { to: '/pipeline', ico: '03', label: 'Pipeline' },
+      { to: '/revenue', ico: '04', label: 'Ingresos' },
+      { to: '/ops', ico: '05', label: 'Plataforma' },
     ],
   },
   {
-    label: 'Product & Ops',
+    label: 'Sistema',
     items: [
-      { to: '/usage', ico: '05', label: 'Product Usage' },
-      { to: '/economics', ico: '06', label: 'Unit Economics' },
-      { to: '/retention', ico: '07', label: 'Retention' },
-      { to: '/support', ico: '08', label: 'Support / VoC' },
-      { to: '/ops', ico: '09', label: 'Platform Ops' },
-    ],
-  },
-  {
-    label: 'System',
-    items: [
-      { to: '/goals', ico: '10', label: 'Goals & Alerts' },
-      { to: '/settings', ico: '11', label: 'Settings' },
+      { to: '/goals', ico: '06', label: 'Metas' },
+      { to: '/settings', ico: '07', label: 'Ajustes' },
+      { to: '/activity', ico: '08', label: 'Actividad' },
     ],
   },
 ]
@@ -114,16 +108,7 @@ async function exportCsv() {
   try {
     await exportAccounting()
   } catch {
-    brief.value = 'Export CSV falló — ¿JWT configurado?'
-  }
-}
-
-async function runBrief() {
-  try {
-    const r = await api<{ brief: string[] }>('/reports/weekly/run', { method: 'POST' })
-    brief.value = r.brief.map((l) => `• ${l}`).join('\n')
-  } catch {
-    brief.value = 'API offline. Arranca `make api` en el puerto 8081.'
+    toast.value = 'No se pudo exportar.'
   }
 }
 

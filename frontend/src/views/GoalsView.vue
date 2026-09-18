@@ -1,10 +1,11 @@
 <template>
-  <div v-if="!g" class="empty">Cargando…</div>
+  <div v-if="loadError" class="empty">No se pudo cargar. Reintenta.</div>
+  <div v-else-if="!g" class="empty">Cargando…</div>
   <div v-else>
     <div class="hero-row">
       <div>
-        <h1>Goals & Alerts</h1>
-        <p class="lede">OKRs trimestrales, KPIs semanales y reglas que te pegan en Slack.</p>
+        <h1>Metas</h1>
+        <p class="lede">Metas del trimestre y objetivo de net new MRR.</p>
       </div>
     </div>
     <p v-if="error" class="lede" style="color:var(--crit);margin-bottom:10px">{{ error }}</p>
@@ -35,7 +36,7 @@
         </div>
         <div v-if="g.net_new" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line)">
           <h4 style="margin:0 0 8px;font-size:0.8rem;text-transform:uppercase;color:var(--muted)">
-            Net new MRR goal
+            Meta net new MRR
           </h4>
           <div class="list-row">
             <span>Target</span>
@@ -54,13 +55,6 @@
               {{ savingNetNew ? '…' : 'Guardar' }}
             </button>
           </div>
-        </div>
-      </div>
-      <div class="card">
-        <h3>Alert rules</h3>
-        <div v-for="r in g.rules" :key="r.name" class="list-row">
-          <span>{{ r.name }}</span>
-          <span class="tag" :class="r.enabled ? 'good' : 'warn'">{{ r.enabled ? 'on' : 'off' }}</span>
         </div>
       </div>
     </div>
@@ -93,6 +87,7 @@ const netNewDraft = ref(25000)
 const saving = ref<number | null>(null)
 const savingNetNew = ref(false)
 const error = ref('')
+const loadError = ref(false)
 
 function fmt(o: Okr) {
   const cur = o.current ?? 0
@@ -112,8 +107,13 @@ function syncDrafts(data: GoalsPayload) {
 }
 
 async function load() {
-  g.value = await api<GoalsPayload>('/goals')
-  if (g.value) syncDrafts(g.value)
+  loadError.value = false
+  try {
+    g.value = await api<GoalsPayload>('/goals')
+    if (g.value) syncDrafts(g.value)
+  } catch {
+    loadError.value = true
+  }
 }
 
 async function saveOkr(o: Okr, newTarget: number) {

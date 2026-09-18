@@ -1,50 +1,55 @@
 <template>
-  <div v-if="!data" class="empty">Cargando…</div>
+  <div v-if="loadError" class="empty">No se pudo cargar. Reintenta.</div>
+  <div v-else-if="!data" class="empty">Cargando…</div>
   <div v-else>
     <div class="hero-row">
       <div>
-        <RouterLink class="linkish" to="/customers">← Customers</RouterLink>
+        <RouterLink class="linkish" to="/customers">← Cuentas</RouterLink>
         <h1>{{ data.org.name }}</h1>
-        <p class="lede">Account 360 — metadatos de cuenta y uso agregado. Nunca findings crudos.</p>
+        <p class="lede">Metadatos de cuenta y uso agregado. Sin findings crudos.</p>
       </div>
       <span class="tag" :class="data.org.risk === 'ok' ? 'good' : data.org.risk === 'risk' ? 'bad' : 'warn'">{{ data.org.risk }}</span>
     </div>
     <div class="grid g-4">
       <div class="card"><h3>Plan</h3><div class="kpi kpi-sm">{{ data.org.plan }}</div></div>
       <div class="card"><h3>MRR</h3><div class="kpi kpi-sm">{{ money(data.org.mrr) }}</div></div>
-      <div class="card"><h3>Health</h3><div class="kpi kpi-sm">{{ data.org.health }}</div></div>
+      <div class="card"><h3>Salud</h3><div class="kpi kpi-sm">{{ data.org.health }}</div></div>
       <div class="card"><h3>COGS / MRR</h3><div class="kpi kpi-sm">{{ pct(data.margin.ratio, 0) }}</div></div>
     </div>
     <div class="grid g-2b" style="margin-top:14px">
       <div class="card">
-        <h3>Usage 30d</h3>
+        <h3>Uso 30d</h3>
         <div class="list-row"><span>Scans</span><b>{{ data.usage_30d.scans }}</b></div>
-        <div class="list-row"><span>High/Crit delivered</span><b>{{ data.usage_30d.findings_hc }}</b></div>
+        <div class="list-row">
+          <span>Hallazgos (conteo)</span>
+          <b>{{ data.usage_30d.findings_hc }}</b>
+        </div>
+        <p class="kpi-sub" style="margin:0 0 8px">Conteo total — no filtrado High/Crit.</p>
         <div class="list-row"><span>Reports</span><b>{{ data.usage_30d.reports }}</b></div>
-        <div class="list-row"><span>Last active</span><b>{{ data.org.last_active_days }}d ago</b></div>
-        <div class="list-row"><span>Region / channel</span><b>{{ data.org.region }} · {{ data.org.channel }}</b></div>
+        <div class="list-row"><span>Última actividad</span><b>{{ data.org.last_active_days }}d</b></div>
+        <div class="list-row"><span>Región · canal</span><b>{{ data.org.region }} · {{ data.org.channel }}</b></div>
         <div class="list-row"><span>Seats</span><b>{{ data.org.seats }}</b></div>
       </div>
       <div class="card">
-        <h3>Authorized targets</h3>
+        <h3>Targets autorizados</h3>
         <p class="lede" style="margin-bottom:10px">URLs autorizadas para pentest (solo lectura).</p>
         <div v-if="data.authorized_targets.length" class="target-list">
           <div v-for="(t, i) in data.authorized_targets" :key="i" class="list-row">
             <span class="mono">{{ t }}</span>
           </div>
         </div>
-        <div v-else class="empty">Sin restricción configurada (unrestricted).</div>
+        <div v-else class="empty">Sin restricción configurada.</div>
       </div>
     </div>
     <div class="card" style="margin-top:14px">
-      <h3>Recent scans</h3>
+      <h3>Scans recientes</h3>
       <p class="lede" style="margin-bottom:10px">Últimos 25 scans — metadatos solamente.</p>
       <div v-if="data.recent_scans.length" class="scan-table">
         <div class="scan-head">
           <span>Target</span>
           <span>Status</span>
           <span>Findings</span>
-          <span>Started</span>
+          <span>Inicio</span>
         </div>
         <div v-for="s in data.recent_scans" :key="s.id" class="scan-row">
           <span class="mono scan-target">{{ s.target }}</span>
@@ -56,8 +61,8 @@
       <div v-else class="empty">Sin scans registrados para esta cuenta.</div>
     </div>
     <div class="card" style="margin-top:14px">
-      <h3>Internal notes</h3>
-      <p class="lede" style="margin-bottom:10px">Next step: {{ data.next_step }}</p>
+      <h3>Notas internas</h3>
+      <p class="lede" style="margin-bottom:10px">Siguiente paso: {{ data.next_step }}</p>
       <form class="filters" @submit.prevent="saveNote">
         <input v-model="note" placeholder="Nota interna…" style="flex:1;min-width:180px" />
         <button class="btn primary" type="submit">Guardar</button>
@@ -99,11 +104,12 @@ interface Account {
 const route = useRoute()
 const data = ref<Account | null>(null)
 const note = ref('')
+const loadError = ref(false)
 
 function formatScanDate(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString()
+  return d.toLocaleString('es-ES')
 }
 
 function scanStatusClass(status: string): string {
@@ -114,7 +120,13 @@ function scanStatusClass(status: string): string {
 }
 
 async function load() {
-  data.value = await api<Account>(`/customers/${route.params.id}`)
+  loadError.value = false
+  data.value = null
+  try {
+    data.value = await api<Account>(`/customers/${route.params.id}`)
+  } catch {
+    loadError.value = true
+  }
 }
 
 async function saveNote() {

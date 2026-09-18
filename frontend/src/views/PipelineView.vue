@@ -1,10 +1,11 @@
 <template>
-  <div v-if="!data" class="empty">Cargando…</div>
+  <div v-if="loadError" class="empty">No se pudo cargar. Reintenta.</div>
+  <div v-else-if="!data" class="empty">Cargando…</div>
   <div v-else>
     <div class="hero-row">
       <div>
-        <h1>Pipeline & GTM</h1>
-        <p class="lede">CRM ligero opinionated para un founder: deals, stages, win/loss — no Salesforce.</p>
+        <h1>Pipeline</h1>
+        <p class="lede">CRM ligero para GTM: deals, stages, win/loss.</p>
       </div>
     </div>
     <div class="grid g-4" style="margin-bottom:14px">
@@ -60,7 +61,7 @@
               title="Marcar lost"
               @click="moveDeal(d.id, 'lost')"
             >
-              Lost
+              Perdido
             </button>
           </div>
         </div>
@@ -80,7 +81,7 @@ const STAGES = [
   { id: 'qualified', label: 'Qualified' },
   { id: 'pilot', label: 'Pilot' },
   { id: 'negotiation', label: 'Negotiation' },
-  { id: 'won', label: 'Closed Won' },
+  { id: 'won', label: 'Ganado' },
 ]
 
 const ORDER = STAGES.map((s) => s.id)
@@ -91,6 +92,7 @@ const newAcv = ref(10000)
 const newSource = ref('inbound')
 const saving = ref(false)
 const error = ref('')
+const loadError = ref(false)
 
 const columns = computed(() =>
   STAGES.map((s) => ({
@@ -110,7 +112,12 @@ function prevStage(stage: string): string | null {
 }
 
 async function load() {
-  data.value = await api('/pipeline/deals')
+  loadError.value = false
+  try {
+    data.value = await api('/pipeline/deals')
+  } catch {
+    loadError.value = true
+  }
 }
 
 async function createDeal() {

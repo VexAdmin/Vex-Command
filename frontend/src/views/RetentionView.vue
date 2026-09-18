@@ -1,9 +1,11 @@
 <template>
-  <div v-if="!r" class="empty">Cargando…</div>
+  <div v-if="loadError" class="empty">No se pudo cargar. Reintenta.</div>
+  <div v-else-if="!r" class="empty">Cargando…</div>
   <div v-else>
+    <div class="banner">Métricas de retención aún no instrumentadas. Esta vista no está en el nav principal.</div>
     <div class="hero-row">
       <div>
-        <h1>Retention & Health</h1>
+        <h1>Salud de cuentas</h1>
         <p class="lede">NRR, churn y lista de riesgo accionable. Health = recency 40% + payment 30% + usage 20% + support 10%.</p>
       </div>
     </div>
@@ -42,8 +44,14 @@ const r = ref<{
   nrr: number
   risks: (Org & { signal: string; next_step: string })[]
 } | null>(null)
+const loadError = ref(false)
 
 onMounted(async () => {
-  r.value = await api('/retention/health')
+  loadError.value = false
+  try {
+    r.value = await api('/retention/health')
+  } catch {
+    loadError.value = true
+  }
 })
 </script>

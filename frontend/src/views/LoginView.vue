@@ -4,24 +4,24 @@
       <div class="login-brand">
         <img src="/vex-logo.svg" alt="VEX" />
         <div>
-          <strong>Vex Command</strong>
-          <div class="login-sub">Founder Console · ops internal</div>
+          <strong>VEX Command</strong>
+          <div class="login-sub">Operaciones de plataforma</div>
         </div>
       </div>
-      <h1>Sign in</h1>
-      <p class="login-lede">Use your platform operator credentials (same as Raptor).</p>
+      <h1>Entrar</h1>
+      <p class="login-lede">Usa tu usuario de operador VEX.</p>
       <form class="login-form" @submit.prevent="submit">
         <label>
           Email
           <input v-model="email" type="email" autocomplete="username" required />
         </label>
         <label>
-          Password
+          Contraseña
           <input v-model="password" type="password" autocomplete="current-password" required />
         </label>
         <p v-if="error" class="login-error">{{ error }}</p>
         <button class="btn primary login-btn" type="submit" :disabled="loading">
-          {{ loading ? 'Signing in…' : 'Sign in' }}
+          {{ loading ? 'Entrando…' : 'Entrar' }}
         </button>
       </form>
     </div>
@@ -49,8 +49,8 @@ async function submit() {
     await router.replace(redirect || '/')
   } catch (e) {
     error.value = e instanceof Error && e.message.includes('403')
-      ? 'Platform operator access required.'
-      : 'Invalid email or password.'
+      ? 'No tienes acceso de operador.'
+      : 'Email o contraseña incorrectos.'
   } finally {
     loading.value = false
   }

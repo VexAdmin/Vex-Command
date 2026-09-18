@@ -1,9 +1,11 @@
 <template>
-  <div v-if="!s" class="empty">Cargando…</div>
+  <div v-if="loadError" class="empty">No se pudo cargar. Reintenta.</div>
+  <div v-else-if="!s" class="empty">Cargando…</div>
   <div v-else>
+    <div class="banner">Soporte/VoC aún no instrumentado. Esta vista no está en el nav principal.</div>
     <div class="hero-row">
       <div>
-        <h1>Support & Voice of Customer</h1>
+        <h1>Soporte</h1>
         <p class="lede">Inbox ligero + NPS. El ticketing pesado se queda en Linear/email.</p>
       </div>
       <a v-if="linearUrl" :href="linearUrl" target="_blank" rel="noopener" class="btn primary">
@@ -49,14 +51,20 @@ type SupportPayload = {
 
 const s = ref<SupportPayload | null>(null)
 const linearUrl = ref<string | null>(null)
+const loadError = ref(false)
 
 onMounted(async () => {
-  const [support, settings] = await Promise.all([
-    api<SupportPayload>('/support'),
-    api<{ integrations: Record<string, string> }>('/settings'),
-  ])
-  const linear = settings.integrations.linear
-  linearUrl.value = linear && linear.startsWith('http') ? linear : null
-  s.value = support
+  loadError.value = false
+  try {
+    const [support, settings] = await Promise.all([
+      api<SupportPayload>('/support'),
+      api<{ integrations: Record<string, string> }>('/settings'),
+    ])
+    const linear = settings.integrations.linear
+    linearUrl.value = linear && linear.startsWith('http') ? linear : null
+    s.value = support
+  } catch {
+    loadError.value = true
+  }
 })
 </script>

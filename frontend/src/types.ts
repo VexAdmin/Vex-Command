@@ -41,6 +41,8 @@ export interface Overview {
   goal_net_new: { current: number; target: number }
   alerts: { severity: string; title: string; body: string }[]
   billing_mode: string
+  scans_7d?: number
+  wau_orgs?: number
 }
 
 export interface Deal {

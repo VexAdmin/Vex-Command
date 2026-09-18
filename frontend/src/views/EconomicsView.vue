@@ -1,9 +1,11 @@
 <template>
-  <div v-if="!e" class="empty">Cargando…</div>
+  <div v-if="loadError" class="empty">No se pudo cargar. Reintenta.</div>
+  <div v-else-if="!e" class="empty">Cargando…</div>
   <div v-else>
+    <div class="banner">Aún no hay datos instrumentados (PRICE-00). Esta vista no está en el nav principal.</div>
     <div class="hero-row">
       <div>
-        <h1>Unit Economics</h1>
+        <h1>Costes unitarios</h1>
         <p class="lede">Sin coste Gemini por scan no hay pricing defendible. Este módulo exige instrumentar PRICE-00 en Vex Raptor.</p>
       </div>
     </div>
@@ -45,8 +47,14 @@ const e = ref<{
   thin_margin_orgs: number
   per_scan: { profile: string; tokens: number; infra: number; total: number; flag: string }[]
 } | null>(null)
+const loadError = ref(false)
 
 onMounted(async () => {
-  e.value = await api('/economics/cogs')
+  loadError.value = false
+  try {
+    e.value = await api('/economics/cogs')
+  } catch {
+    loadError.value = true
+  }
 })
 </script>

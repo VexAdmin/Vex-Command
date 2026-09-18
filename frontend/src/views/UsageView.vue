@@ -1,9 +1,11 @@
 <template>
-  <div v-if="!u" class="empty">Cargando…</div>
+  <div v-if="loadError" class="empty">No se pudo cargar. Reintenta.</div>
+  <div v-else-if="!u" class="empty">Cargando…</div>
   <div v-else>
+    <div class="banner">Aún no hay datos instrumentados. Esta vista no está en el nav principal.</div>
     <div class="hero-row">
       <div>
-        <h1>Product Usage</h1>
+        <h1>Uso del producto</h1>
         <p class="lede">Leading indicators de retención: si no escanean ni abren reportes, el MRR es frágil.</p>
       </div>
     </div>
@@ -53,8 +55,14 @@ const u = ref<{
   funnel: { signup: number; first_scan: number; first_high: number; converted: number }
   adoption: Record<string, number>
 } | null>(null)
+const loadError = ref(false)
 
 onMounted(async () => {
-  u.value = await api('/usage/summary')
+  loadError.value = false
+  try {
+    u.value = await api('/usage/summary')
+  } catch {
+    loadError.value = true
+  }
 })
 </script>

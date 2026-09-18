@@ -62,6 +62,16 @@ button { cursor: pointer; }
   padding: 4px 8px 16px;
 }
 .brand img { height: 22px; width: auto; }
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.brand-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
 .brand-sub {
   font-size: 0.68rem;
   text-transform: uppercase;
