@@ -33,14 +33,40 @@ async def init_db() -> None:
     await _run_migrations()
 
 
+def _is_prod_like(app_env: str) -> bool:
+    return app_env in ("prod", "staging")
+
+
 def _migration_engine() -> AsyncEngine:
     """Separate engine for DDL migrations — owner URL when configured, otherwise
-    falls back to the runtime engine (local dev keeps working with one URL)."""
+    falls back to the runtime engine (local dev keeps working with one URL).
+
+    S3: prod/staging must always set MIGRATION_DATABASE_URL explicitly — the
+    fallback exists for local dev only. Without this check an operator who
+    forgets it in prod would silently try to run schema DDL over the
+    least-privilege runtime DATABASE_URL (vex_founder_ro), which fails with a
+    confusing permission-denied deep inside migration SQL instead of a clear
+    startup error.
+    """
+    if _is_prod_like(settings.app_env) and not settings.migration_database_url:
+        raise RuntimeError(
+            "MIGRATION_DATABASE_URL is required when APP_ENV is prod/staging — "
+            "refusing to run schema migrations over the runtime DATABASE_URL."
+        )
     migration_url = settings.resolved_migration_url
     if migration_url and migration_url != settings.database_url:
         return create_async_engine(_async_url(migration_url), pool_pre_ping=True)
     assert _engine is not None
     return _engine
+
+
+def _dev_stub_allowed() -> bool:
+    """S2: the dev stub/seed SQL (004/005) creates throwaway Raptor-shaped
+    tables and fake seed data. It must NEVER run against prod/staging — those
+    always point at the real Raptor Postgres, and applying the stub there
+    would silently mask a real Raptor schema/connectivity failure instead of
+    crashing loudly. FOUNDER_DEV_STUB=true never overrides this."""
+    return settings.founder_dev_stub and not _is_prod_like(settings.app_env)
 
 
 async def close_db() -> None:
@@ -136,11 +162,24 @@ async def _run_migrations() -> None:
             )
             has_raptor = r.scalar() is not None
 
-        if not has_raptor and settings.founder_dev_stub:
-            logger.warning("Raptor tables missing — applying dev stub")
-            await _run_sql_file_tx(SQL_DIR / "004_dev_raptor_stub.sql", mig_engine)
-            await _run_sql_file_tx(SQL_DIR / "005_dev_seed.sql", mig_engine)
-            has_raptor = True
+        if not has_raptor:
+            if _is_prod_like(settings.app_env):
+                # S2: fail loudly — never fall through to the dev stub, and
+                # never silently skip the aggregate views, on a prod/staging
+                # DB that doesn't actually have Raptor's tables. A quiet "no
+                # aggregate views" boot here previously looked like a healthy
+                # start with an empty dashboard, not a broken DB connection —
+                # no silent stub DDL on Raptor production Postgres, ever.
+                raise RuntimeError(
+                    "public.organizations not found in prod/staging DB — "
+                    "refusing to apply the dev stub. Check that DATABASE_URL/"
+                    "MIGRATION_DATABASE_URL point at the real Raptor Postgres."
+                )
+            if _dev_stub_allowed():
+                logger.warning("Raptor tables missing — applying dev stub")
+                await _run_sql_file_tx(SQL_DIR / "004_dev_raptor_stub.sql", mig_engine)
+                await _run_sql_file_tx(SQL_DIR / "005_dev_seed.sql", mig_engine)
+                has_raptor = True
 
         if has_raptor:
             await _run_sql_file_tx(SQL_DIR / "002_aggregate_views.sql", mig_engine)
@@ -150,6 +189,11 @@ async def _run_migrations() -> None:
         try:
             await _run_sql_file_tx(SQL_DIR / "003_roles.sql", mig_engine)
         except Exception as exc:
+            if _is_prod_like(settings.app_env):
+                raise RuntimeError(
+                    f"sql/003_roles.sql failed in {settings.app_env} — "
+                    "refusing to start with broken DB grants"
+                ) from exc
             logger.info("roles migration skipped: %s", exc)
     finally:
         if owns_mig_engine:

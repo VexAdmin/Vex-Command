@@ -1,7 +1,9 @@
 -- Vex Command — schema founder
 -- Designed for 1.000 orgs. Never store finding payloads here.
--- Roles (prod): vex_founder_ro SELECT aggregates + founder.*
---               vex_founder_rw DML only on founder.*
+-- Roles (prod, S3 2026-09-18): vex_founder_ro is the ONLY runtime role —
+-- SELECT on aggregate views + scoped DML on deal/deal_activity/account_note/
+-- goal/okr/manual_revenue, INSERT-only on audit_log. vex_founder_rw is
+-- deprecated (no privileges). See sql/003_roles.sql.
 
 CREATE SCHEMA IF NOT EXISTS founder;
 
@@ -159,6 +161,15 @@ CREATE TABLE IF NOT EXISTS founder.audit_log (
 );
 
 CREATE INDEX IF NOT EXISTS audit_log_org_idx ON founder.audit_log (org_id, created_at DESC);
+
+-- S3 (2026-09-18): runtime read path for the audit trail. vex_founder_ro can
+-- INSERT into founder.audit_log directly (sql/003_roles.sql) but has no
+-- SELECT on the base table — GET /api/founder/v1/audit reads through this
+-- view instead (backend/app/audit.py list_recent), so the base table stays
+-- append-only from the runtime role's perspective.
+CREATE OR REPLACE VIEW founder.v_audit_log AS
+SELECT id, actor_email, action, org_id, path, ip, created_at
+FROM founder.audit_log;
 
 -- Warehouse-shaped tables (Postgres stand-in until ClickHouse @ 200–1.000 orgs).
 -- Grain documented in docs/RESOURCES_1000.md. No finding text.

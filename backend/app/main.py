@@ -19,6 +19,8 @@ from app.providers import build_provider
 
 OperatorDep = Annotated[Operator, Depends(require_operator)]
 
+APP_VERSION = "0.2.0"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,11 +30,41 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
-app = FastAPI(title="Vex Command", version="0.2.0", docs_url="/api/founder/docs", lifespan=lifespan)
+def _is_prod_like(app_env: str) -> bool:
+    return app_env in ("prod", "staging")
+
+
+def _docs_urls() -> tuple[str | None, str | None, str | None]:
+    """S4: Swagger/ReDoc/OpenAPI are unauthenticated admin surface — never
+    exposed on ops.vexraptor.com. Dev keeps them for local debugging."""
+    if _is_prod_like(settings.app_env):
+        return None, None, None
+    return "/api/founder/docs", "/redoc", "/openapi.json"
+
+
+def _cors_origins() -> list[str]:
+    """S6: prod/staging only ever talk to the real console origin — the
+    127.0.0.1:5174 Vite dev-server origin must never be trusted on
+    ops.vexraptor.com, even with allow_credentials=True."""
+    if _is_prod_like(settings.app_env):
+        return [settings.console_origin]
+    return [settings.console_origin, "http://127.0.0.1:5174"]
+
+
+_docs_url, _redoc_url, _openapi_url = _docs_urls()
+
+app = FastAPI(
+    title="Vex Command",
+    version=APP_VERSION,
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
+    openapi_url=_openapi_url,
+    lifespan=lifespan,
+)
 app.include_router(founder_auth_router, prefix="/api/founder/v1")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.console_origin, "http://127.0.0.1:5174"],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,16 +83,12 @@ def _provider(request: Request):
 
 
 @app.get("/health")
-async def health(request: Request):
-    p = _provider(request)
-    return {
-        "status": "ok",
-        "product": "vex-command",
-        "version": "0.2.0",
-        "dataset": p.dataset,
-        "data_source": settings.resolved_data_source,
-        "auth_mode": settings.founder_auth_mode,
-    }
+async def health():
+    # S4: this route has no auth — it must never leak dataset/data_source/
+    # auth_mode/product to an unauthenticated caller (that was exactly what
+    # let anyone fingerprint the deployment). Status + version only, same
+    # shape as Raptor's own /health.
+    return {"status": "ok", "version": APP_VERSION}
 
 
 @app.get("/api/founder/v1/overview")

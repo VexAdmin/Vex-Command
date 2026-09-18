@@ -1,6 +1,15 @@
 # C-01 deploy artifact — apply on droplet after DNS ops.vexraptor.com → origin.
 # Cloudflare: Full (strict) TLS, WAF, noindex headers below.
-# limit_req_zone $binary_remote_addr zone=founder:10m rate=60r/m;  # in http{} block
+#
+# S3-nginx (2026-09-18): this directive MUST live in the http{} block (nginx
+# does not allow limit_req_zone inside server{}). If this file is included
+# directly from nginx.conf's http{} (e.g. via `include sites-enabled/*.conf;`
+# at the top level, not nested inside another server{}), placing it here
+# before the server{} block below is enough — do not move it into
+# /etc/nginx/sites-enabled without checking it still resolves at http{} scope.
+limit_req_zone $binary_remote_addr zone=founder:10m rate=60r/m;
+# S2/S5: tighter bucket for unauthenticated login — brute-force surface.
+limit_req_zone $binary_remote_addr zone=founder_login:10m rate=10r/m;
 
 server {
     listen 80;
@@ -19,10 +28,24 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    location = /api/founder/v1/auth/login {
+        # S2-nginx: login-only rate limit (stricter than the general API zone).
+        limit_req zone=founder_login burst=5 nodelay;
+        proxy_pass http://vex-founder:8081;
+        proxy_set_header Host $host;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
     location /api/founder/v1/ {
+        # S5/S3-nginx: refresh + authenticated founder API (login handled above).
         limit_req zone=founder burst=20 nodelay;
         proxy_pass http://vex-founder:8081;
         proxy_set_header Host $host;
         proxy_set_header Authorization $http_authorization;
+        # S5: without this, Command's login rate-limiter and X-Forwarded-For
+        # relay to Raptor both see nginx's own IP instead of the real client —
+        # every operator would share one rate-limit bucket again.
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 }

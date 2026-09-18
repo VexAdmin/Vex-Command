@@ -19,9 +19,11 @@ def client():
 
 
 def test_health(client):
+    # S4: minimal admin surface — status + version only, nothing else leaked
+    # to an unauthenticated caller (no dataset/data_source/auth_mode/product).
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json()["product"] == "vex-command"
+    assert r.json() == {"status": "ok", "version": "0.2.0"}
 
 
 def test_overview_scale(client):

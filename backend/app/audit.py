@@ -52,10 +52,13 @@ async def list_recent(limit: int = 100) -> list[dict]:
         return _MEMORY[:limit]
 
     async with factory() as session:
+        # S3: vex_founder_ro has INSERT-only on the base audit_log table —
+        # read through the view instead (sql/001_founder_schema.sql
+        # founder.v_audit_log), which is the only relation it can SELECT.
         r = await session.execute(
             text(
                 "SELECT actor_email, action, org_id, path, ip, created_at "
-                "FROM founder.audit_log ORDER BY created_at DESC LIMIT :limit"
+                "FROM founder.v_audit_log ORDER BY created_at DESC LIMIT :limit"
             ),
             {"limit": limit},
         )

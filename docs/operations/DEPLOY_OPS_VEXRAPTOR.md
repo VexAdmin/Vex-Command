@@ -27,12 +27,19 @@ Raptor **no** se modifica en código; solo se comparte `SECRET_KEY` (JWT) y Post
 2. **Postgres, migraciones (owner)** — `sql/001`, `002`, `003` corren como `vex_raptor`
    (owner/superuser), vía `MIGRATION_DATABASE_URL` — nunca con `vex_founder_rw`.
    Passwords de `vex_founder_ro/rw` vía `deploy/apply-founder-roles.sh`.
-3. **Runtime = solo lectura acotada, sin ownership ni acceso directo a `public.*`.**
-   `vex_founder_ro` (y `rw` para escrituras en `founder.*` como C-23 manual revenue)
-   NO tienen `GRANT` sobre tablas de `public` de Raptor, ni ownership del schema
-   `founder`. Ver `deploy/bootstrap-founder-db-grants.sql` (versión mínima,
-   solo migración) — el `GRANT CREATE`/`ALTER SCHEMA OWNER`/`GRANT SELECT` amplio
-   que este archivo tenía antes del 2026-09-15 quedó revertido.
+3. **Runtime = un solo rol acotado, sin ownership ni acceso directo a `public.*`.**
+   Desde S3 (2026-09-18) `vex_founder_ro` es el **único** rol runtime: `SELECT`
+   sobre las vistas agregadas + DML acotado a `deal`, `deal_activity`,
+   `account_note`, `goal`, `okr`, `manual_revenue` (incluye escrituras como
+   C-23 manual revenue), e `INSERT`-only sobre `audit_log` (lectura vía
+   `founder.v_audit_log`). `vex_founder_rw` queda **deprecado** — no tiene
+   ningún grant y nunca debe ser el `DATABASE_URL` de runtime;
+   `deploy/run-vex-founder.sh` rechaza arrancar si lo es. Ninguno de los dos
+   roles tiene `GRANT` sobre tablas de `public` de Raptor más allá de lo ya
+   documentado, ni ownership del schema `founder`. Ver `sql/003_roles.sql` y
+   `deploy/bootstrap-founder-db-grants.sql` (versión mínima, solo migración) —
+   el `GRANT CREATE`/`ALTER SCHEMA OWNER`/`GRANT SELECT` amplio que este
+   archivo tenía antes del 2026-09-15 quedó revertido.
 
 **RLS (Raptor T-22):** `org_configs`, `scan_history` y `scan_metrics` tienen Row
 Level Security forzado. En vez de un bypass global de sesión (`app.bypass_rls`,
@@ -94,7 +101,7 @@ docker image prune -f
 # 3. Secretos fuera del historial bash — usar archivo env
 cp ~/Vex-Command/deploy/vex-founder.env.example ~/vex-founder.env
 chmod 600 ~/vex-founder.env
-# editar JWT_SECRET_KEY + VEX_FOUNDER_RW_PASSWORD
+# editar JWT_SECRET_KEY + DATABASE_URL (vex_founder_ro) + MIGRATION_DATABASE_URL (vex_raptor)
 bash ~/Vex-Command/deploy/run-vex-founder.sh ~/vex-founder.env
 
 # 4. (Opcional) limpiar historial si pegaste passwords en la terminal
