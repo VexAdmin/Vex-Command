@@ -1,6 +1,12 @@
 const BASE = import.meta.env.VITE_API_BASE || ''
 
+// S7: the Bearer/localStorage token is a dev convenience only — an XSS on the
+// SPA can read localStorage but not the httpOnly session cookie Command sets.
+// `import.meta.env.PROD` is true for any `vite build` output (what ops.
+// serves), so this path never ships live even if VITE_FOUNDER_TOKEN or a
+// stale localStorage entry is present.
 function legacyToken(): string {
+  if (import.meta.env.PROD) return ''
   return localStorage.getItem('founder_token') || import.meta.env.VITE_FOUNDER_TOKEN || ''
 }
 

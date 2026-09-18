@@ -23,7 +23,7 @@
         <div v-for="op in s.operators" :key="op.email" class="list-row">
           <span>{{ op.email }}</span><b>{{ op.role }}</b>
         </div>
-        <div class="list-row"><span>MFA</span><span class="tag good">{{ s.mfa }}</span></div>
+        <div class="list-row"><span>MFA</span><span class="tag" :class="s.mfa === 'required' ? 'good' : 'warn'">{{ s.mfa }}</span></div>
         <div class="list-row"><span>Session TTL</span><b class="mono">{{ s.session_ttl }}</b></div>
         <div class="list-row"><span>IP allowlist</span><b>{{ s.ip_allowlist ? 'on' : 'off' }}</b></div>
       </div>

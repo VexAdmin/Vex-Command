@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from app.auth import Operator, is_platform_operator, operator_from_access_token, require_operator
 from app.config import settings
+from app.rate_limit import client_ip, enforce_login_rate_limit
 
 logger = logging.getLogger("vex.command.auth")
 
@@ -18,7 +19,12 @@ router = APIRouter(prefix="/auth", tags=["founder-auth"])
 
 ACCESS_COOKIE = "founder_access"
 REFRESH_COOKIE = "founder_refresh"
-ACCESS_MAX_AGE = 2 * 60 * 60
+# S7: cookie lifetime shorter than Raptor's underlying 2h JWT expiry (which
+# Command doesn't control — never edit Raptor). This doesn't shrink the
+# token's real exp, but it makes the browser drop the cookie sooner, forcing
+# a /refresh round-trip — and a fresh Raptor session revalidation — every
+# 45 minutes instead of letting one session coast for the full 2h window.
+ACCESS_MAX_AGE = 45 * 60
 REFRESH_MAX_AGE = 7 * 24 * 60 * 60
 
 
@@ -52,11 +58,13 @@ def _reject_non_operator(email: str, role: str | None, org_id: int | None) -> No
         raise HTTPException(status_code=403, detail="platform operator required")
 
 
-async def _raptor_post(path: str, json_body: dict) -> httpx.Response:
+async def _raptor_post(
+    path: str, json_body: dict, headers: dict[str, str] | None = None
+) -> httpx.Response:
     url = f"{settings.raptor_auth_url.rstrip('/')}{path}"
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            return await client.post(url, json=json_body)
+            return await client.post(url, json=json_body, headers=headers)
     except httpx.HTTPError as exc:
         logger.warning("raptor auth unreachable: %s", exc)
         raise HTTPException(status_code=502, detail="auth upstream unavailable") from exc
@@ -70,10 +78,19 @@ def _tokens_from_raptor(data: dict) -> tuple[str, str | None]:
 
 
 @router.post("/login")
-async def login(body: LoginBody, response: Response) -> dict[str, str | None]:
-    r = await _raptor_post("/login", {"email": body.email, "password": body.password})
+async def login(body: LoginBody, request: Request, response: Response) -> dict[str, str | None]:
+    # S5: enforce Command's own per-client-IP budget before ever touching
+    # Raptor — Raptor's 5/min limiter would otherwise see the container IP.
+    enforce_login_rate_limit(request)
+    r = await _raptor_post(
+        "/login",
+        {"email": body.email, "password": body.password},
+        headers={"X-Forwarded-For": client_ip(request)},
+    )
     if r.status_code == 401:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if r.status_code == 429:
+        raise HTTPException(status_code=429, detail="too many login attempts, try again later")
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail="auth upstream error")
     access, refresh = _tokens_from_raptor(r.json())
@@ -92,10 +109,16 @@ async def refresh_session(
     raw = (body.refresh_token if body else None) or request.cookies.get(REFRESH_COOKIE)
     if not raw:
         raise HTTPException(status_code=401, detail="refresh required")
-    r = await _raptor_post("/refresh", {"refresh_token": raw})
+    r = await _raptor_post(
+        "/refresh",
+        {"refresh_token": raw},
+        headers={"X-Forwarded-For": client_ip(request)},
+    )
     if r.status_code == 401:
         _clear_session_cookies(response)
         raise HTTPException(status_code=401, detail="session expired")
+    if r.status_code == 429:
+        raise HTTPException(status_code=429, detail="too many refresh attempts, try again later")
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail="auth upstream error")
     access, refresh = _tokens_from_raptor(r.json())
@@ -106,7 +129,23 @@ async def refresh_session(
 
 
 @router.post("/logout")
-async def logout(response: Response) -> dict[str, str]:
+async def logout(request: Request, response: Response) -> dict[str, str]:
+    # S1: Command's cookies are only a local view of the session — the JWT
+    # itself stays valid until Raptor revokes its JTI. Clearing cookies alone
+    # leaves a stolen/copied token usable until exp. Best-effort: Command's
+    # cookies are always cleared for the browser even if Raptor is
+    # unreachable, but we always attempt the real revocation first.
+    access = request.cookies.get(ACCESS_COOKIE)
+    refresh = request.cookies.get(REFRESH_COOKIE)
+    if access:
+        try:
+            await _raptor_post(
+                "/logout",
+                {"refresh_token": refresh} if refresh else {},
+                headers={"Authorization": f"Bearer {access}"},
+            )
+        except HTTPException as exc:
+            logger.warning("raptor logout failed, clearing local cookies anyway: %s", exc.detail)
     _clear_session_cookies(response)
     return {"status": "ok"}
 

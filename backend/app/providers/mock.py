@@ -5,6 +5,7 @@ from typing import Any, Protocol
 
 from app.auth import Operator
 from app.config import settings
+from app.founder_auth import ACCESS_MAX_AGE
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary
 from app.seed import Deal, World, build_world, deal_dict, org_dict
 
@@ -246,8 +247,10 @@ class MockProvider:
             "api_prefix": "/api/founder/v1",
             "currency": "USD",
             "fy_start": "January",
-            "session_ttl": "45m",
-            "mfa": "required",
+            # S7: real access-cookie lifetime and honest MFA state — see
+            # founder_auth.ACCESS_MAX_AGE and the SqlProvider equivalent.
+            "session_ttl": f"{ACCESS_MAX_AGE // 60}m",
+            "mfa": "no implementado",
             "ip_allowlist": False,
             "dataset": self._world.dataset,
             "data_source": "mock",

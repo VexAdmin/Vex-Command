@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     serve_static: bool = False
     static_dir: str = "static"
 
+    # S5: reverse proxies (nginx in front of Command) allowed to set
+    # X-Forwarded-For for login rate-limiting. Never trust the header from an
+    # untrusted peer — that would let any client spoof its way past the limit.
+    trusted_proxy_ips: str = "127.0.0.1,::1"
+
     @property
     def resolved_migration_url(self) -> str:
         return self.migration_database_url or self.database_url
@@ -54,6 +59,10 @@ class Settings(BaseSettings):
     @property
     def operator_emails(self) -> frozenset[str]:
         return frozenset(e.strip().lower() for e in self.vex_operator_emails.split(",") if e.strip())
+
+    @property
+    def trusted_proxies(self) -> frozenset[str]:
+        return frozenset(ip.strip() for ip in self.trusted_proxy_ips.split(",") if ip.strip())
 
 
 settings = Settings()
