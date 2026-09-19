@@ -7,6 +7,12 @@ from app.auth import Operator
 from app.config import settings
 from app.founder_auth import ACCESS_MAX_AGE
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary
+from app.account_checklist import (
+    CHECKLIST_FIELDS,
+    checklist_defaults,
+    checklist_payload,
+    merge_checklist_body,
+)
 from app.account_ops import default_next_step, normalize_pilot_stage, ops_payload
 from app.customer_filters import filter_customer_rows, sort_customer_rows
 from app.ops_alerts import alerts_from_orgs
@@ -35,6 +41,9 @@ class FounderProvider(Protocol):
         pilot_stage: str = "",
     ) -> dict[str, Any]: ...
     async def customer(self, org_id: int) -> dict[str, Any] | None: ...
+    async def update_account_checklist(
+        self, org_id: int, body: dict[str, Any], operator: Operator
+    ) -> dict[str, Any]: ...
     async def add_note(self, org_id: int, body: str, operator: Operator) -> dict[str, Any]: ...
     async def deals(self) -> dict[str, Any]: ...
     async def create_deal(self, body: dict[str, Any], operator: Operator) -> dict[str, Any]: ...
@@ -59,6 +68,7 @@ class MockProvider:
         self.dataset = world.dataset
         self._manual_revenue: list[dict[str, Any]] = []
         self._account_ops: dict[int, dict[str, Any]] = {}
+        self._account_checklist: dict[int, dict[str, bool]] = {}
         self._target_timeline: dict[int, list[dict[str, Any]]] = {}
 
     def _ledger_month_usd(self) -> float:
@@ -157,10 +167,19 @@ class MockProvider:
             )
         else:
             ops = ops_payload(pilot_stage="pilot", next_step=fallback)
+        stored = self._account_checklist.get(org_id, {})
+        checklist_values = {
+            key: bool(stored.get(key, False)) for key in CHECKLIST_FIELDS
+        }
+        checklist = checklist_payload(
+            checklist_values,
+            updated_by=stored.get("updated_by"),
+        )
         return {
             "org": od,
             "notes": notes,
             "ops": ops,
+            "checklist": checklist,
             "target_timeline": list(self._target_timeline.get(org_id, [])),
             "authorized_targets": [f"https://{org.slug}.example"],
             "recent_scans": [],
@@ -204,6 +223,18 @@ class MockProvider:
             next_step=next_step or default_next_step(od["risk"]),
             updated_by=operator.email,
         )
+
+    async def update_account_checklist(
+        self, org_id: int, body: dict[str, Any], operator: Operator
+    ) -> dict[str, Any]:
+        org = next((o for o in self._world.orgs if o.id == org_id), None)
+        if not org:
+            raise ValueError("org not found")
+        stored = self._account_checklist.get(org_id, {})
+        current = {key: bool(stored.get(key, False)) for key in CHECKLIST_FIELDS}
+        merged = merge_checklist_body(body, current)
+        self._account_checklist[org_id] = {**merged, "updated_by": operator.email}
+        return checklist_payload(merged, updated_by=operator.email)
 
     async def deals(self) -> dict[str, Any]:
         items = [deal_dict(d) for d in self._world.deals]

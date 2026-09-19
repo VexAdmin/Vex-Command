@@ -101,6 +101,32 @@
       </p>
     </div>
     <div class="card" style="margin-top:14px">
+      <h3>Checklist operativo</h3>
+      <p class="lede" style="margin-bottom:10px">
+        Onboarding interno — sin documentos adjuntos. {{ data.checklist?.done_count ?? 0 }}/{{ data.checklist?.total ?? 4 }} completado.
+      </p>
+      <div v-if="checklistError" class="targets-error">{{ checklistError }}</div>
+      <form class="checklist-form" @submit.prevent="saveChecklist">
+        <label
+          v-for="item in checklistItems"
+          :key="item.key"
+          class="checklist-row"
+        >
+          <input
+            v-model="checklistDraft[item.key]"
+            type="checkbox"
+            :disabled="checklistBusy"
+          />
+          <span>{{ item.label }}</span>
+        </label>
+        <button class="btn primary" type="submit" :disabled="checklistBusy">Guardar checklist</button>
+      </form>
+      <p v-if="data.checklist?.updated_by" class="kpi-sub">
+        Actualizado por {{ data.checklist.updated_by }}
+        <span v-if="data.checklist.updated_at"> · {{ formatScanDate(data.checklist.updated_at) }}</span>
+      </p>
+    </div>
+    <div class="card" style="margin-top:14px">
       <h3>Scans recientes</h3>
       <p class="lede" style="margin-bottom:10px">Últimos 25 scans — metadatos solamente.</p>
       <div v-if="data.recent_scans.length" class="scan-table">
@@ -214,10 +240,25 @@ interface AccountOps {
   updated_by?: string | null
 }
 
+interface ChecklistItem {
+  key: string
+  label: string
+  done: boolean
+}
+
+interface AccountChecklist {
+  items: ChecklistItem[]
+  done_count: number
+  total: number
+  updated_at?: string | null
+  updated_by?: string | null
+}
+
 interface Account {
   org: Org
   notes: { body: string; actor_email: string }[]
   ops: AccountOps
+  checklist: AccountChecklist
   target_timeline: TargetTimelineEvent[]
   authorized_targets: string[]
   recent_scans: RecentScan[]
@@ -244,6 +285,11 @@ const opsPilotStage = ref('pilot')
 const opsNextStep = ref('')
 const opsBusy = ref(false)
 const opsError = ref('')
+const checklistDraft = ref<Record<string, boolean>>({})
+const checklistBusy = ref(false)
+const checklistError = ref('')
+
+const checklistItems = computed(() => data.value?.checklist?.items ?? [])
 const removePending = ref<string | null>(null)
 const removeConfirmText = ref('')
 const removeConfirmInput = ref<HTMLInputElement | null>(null)
@@ -312,8 +358,32 @@ async function load() {
       opsPilotStage.value = data.value.ops.pilot_stage
       opsNextStep.value = data.value.ops.next_step || ''
     }
+    if (data.value?.checklist?.items) {
+      const draft: Record<string, boolean> = {}
+      for (const item of data.value.checklist.items) {
+        draft[item.key] = item.done
+      }
+      checklistDraft.value = draft
+    }
   } catch {
     loadError.value = true
+  }
+}
+
+async function saveChecklist() {
+  if (!data.value) return
+  checklistBusy.value = true
+  checklistError.value = ''
+  try {
+    const result = await api<{ checklist: AccountChecklist }>(`/customers/${route.params.id}/checklist`, {
+      method: 'PATCH',
+      body: JSON.stringify(checklistDraft.value),
+    })
+    data.value.checklist = result.checklist
+  } catch {
+    checklistError.value = 'No se pudo guardar el checklist.'
+  } finally {
+    checklistBusy.value = false
   }
 }
 
@@ -414,6 +484,19 @@ watch(removePending, (pending, _, onCleanup) => {
 </script>
 
 <style scoped>
+.checklist-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 520px;
+}
+.checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
 .scan-table {
   display: flex;
   flex-direction: column;

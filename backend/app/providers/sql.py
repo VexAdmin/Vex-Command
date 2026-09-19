@@ -15,6 +15,12 @@ from app.founder_auth import ACCESS_MAX_AGE
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary, row_to_deal
 from app.seed import build_world
 from app.providers.mock import MockProvider
+from app.account_checklist import (
+    CHECKLIST_FIELDS,
+    checklist_defaults,
+    checklist_payload,
+    merge_checklist_body,
+)
 from app.account_ops import default_next_step, normalize_pilot_stage, ops_payload
 from app.customer_filters import filter_customer_rows, sort_customer_rows
 from app.ops_alerts import alerts_empty_allowlist, alerts_from_orgs
@@ -126,6 +132,21 @@ class SqlProvider:
 
     def __init__(self) -> None:
         self._fallback = MockProvider(build_world(settings.founder_seed, "pre_revenue"))
+
+    async def _fetch_account_checklist_row(self, session: Any, org_id: int) -> Any:
+        try:
+            r = await session.execute(
+                text(
+                    "SELECT dpa_signed, primary_contact_set, kickoff_done, scope_documented, "
+                    "updated_at, updated_by "
+                    "FROM founder.account_checklist WHERE org_id = :org_id"
+                ),
+                {"org_id": org_id},
+            )
+            return r.first()
+        except Exception as exc:
+            logger.warning("account_checklist read failed org_id=%s: %s", org_id, exc)
+            return None
 
     async def _fetch_account_ops_row(self, session: Any, org_id: int) -> Any:
         try:
@@ -354,6 +375,7 @@ class SqlProvider:
                 for row in scans.fetchall()
             ]
             ops_db = await self._fetch_account_ops_row(session, org_id)
+            checklist_db = await self._fetch_account_checklist_row(session, org_id)
             target_timeline = await self._fetch_target_timeline(session, org_id)
         fallback_step = default_next_step(org["risk"])
         if ops_db:
@@ -368,10 +390,22 @@ class SqlProvider:
                 pilot_stage="pilot",
                 next_step=fallback_step,
             )
+        if checklist_db:
+            checklist_values = {
+                key: bool(getattr(checklist_db, key)) for key in CHECKLIST_FIELDS
+            }
+            checklist = checklist_payload(
+                checklist_values,
+                updated_at=checklist_db.updated_at.isoformat() if checklist_db.updated_at else None,
+                updated_by=checklist_db.updated_by,
+            )
+        else:
+            checklist = checklist_payload(checklist_defaults())
         return {
             "org": org,
             "notes": notes,
             "ops": ops,
+            "checklist": checklist,
             "target_timeline": target_timeline,
             "authorized_targets": _parse_allowed_targets(
                 cfg_row.allowed_targets if cfg_row else None
@@ -435,6 +469,51 @@ class SqlProvider:
         refreshed = await self.customer(org_id)
         assert refreshed is not None
         return refreshed["ops"]
+
+    async def update_account_checklist(
+        self, org_id: int, body: dict[str, Any], operator: Operator
+    ) -> dict[str, Any]:
+        orgs = await self._orgs()
+        org = next((o for o in orgs if o["id"] == org_id), None)
+        if not org:
+            raise ValueError("org not found")
+        current = checklist_defaults()
+        factory = session_factory()
+        async with factory() as session:
+            row = await self._fetch_account_checklist_row(session, org_id)
+            if row:
+                current = {key: bool(getattr(row, key)) for key in CHECKLIST_FIELDS}
+            merged = merge_checklist_body(body, current)
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO founder.account_checklist (
+                        org_id, dpa_signed, primary_contact_set, kickoff_done,
+                        scope_documented, updated_by
+                    )
+                    VALUES (
+                        :org_id, :dpa_signed, :primary_contact_set, :kickoff_done,
+                        :scope_documented, :updated_by
+                    )
+                    ON CONFLICT (org_id) DO UPDATE SET
+                        dpa_signed = EXCLUDED.dpa_signed,
+                        primary_contact_set = EXCLUDED.primary_contact_set,
+                        kickoff_done = EXCLUDED.kickoff_done,
+                        scope_documented = EXCLUDED.scope_documented,
+                        updated_by = EXCLUDED.updated_by,
+                        updated_at = now()
+                    """
+                ),
+                {
+                    "org_id": org_id,
+                    "updated_by": operator.email,
+                    **merged,
+                },
+            )
+            await session.commit()
+        refreshed = await self.customer(org_id)
+        assert refreshed is not None
+        return refreshed["checklist"]
 
     async def deals(self) -> dict[str, Any]:
         factory = session_factory()
@@ -664,6 +743,9 @@ class SqlProvider:
         return {
             "health": health_payload.get("status", "unknown"),
             "version": health_payload.get("version", "—"),
+            "command_version": None,
+            "command_deploy_label": None,
+            "command_env": None,
             "uptime_30d": None,
             "arq_depth": row.running_scans,
             "orphaned_running": row.orphaned_running,

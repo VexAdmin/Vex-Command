@@ -11,7 +11,15 @@
         </p>
       </div>
     </div>
-    <div class="grid g-3">
+    <div class="grid g-4">
+      <div class="card">
+        <h3>VEX Command</h3>
+        <div class="kpi kpi-sm">{{ o.command_env || '—' }}</div>
+        <div class="kpi-sub mono">v{{ o.command_version || '—' }}</div>
+        <div v-if="o.command_deploy_label" class="kpi-sub mono" style="margin-top:6px">
+          deploy {{ o.command_deploy_label }}
+        </div>
+      </div>
       <div class="card">
         <h3>Estado Raptor</h3>
         <div class="kpi kpi-sm">{{ o.health }}</div>
@@ -59,6 +67,9 @@ import { api } from '@/api/client'
 import { money, pct } from '@/lib/format'
 
 interface OpsPayload {
+  command_version: string | null
+  command_deploy_label: string | null
+  command_env: string | null
   health: string
   version: string
   arq_depth: number

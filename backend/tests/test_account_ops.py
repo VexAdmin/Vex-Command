@@ -42,6 +42,7 @@ def test_customer_includes_ops_and_timeline(client):
     body = r.json()
     assert body["ops"]["pilot_stage"] == "pilot"
     assert isinstance(body["target_timeline"], list)
+    assert body["checklist"]["total"] == 4
 
 
 def test_patch_account_ops_mock(client):

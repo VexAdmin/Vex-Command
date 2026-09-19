@@ -62,6 +62,7 @@ GRANT SELECT, INSERT, UPDATE ON
     founder.deal_activity,
     founder.account_note,
     founder.account_ops,
+    founder.account_checklist,
     founder.goal,
     founder.okr,
     founder.manual_revenue

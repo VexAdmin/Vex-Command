@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     # Owner/superuser URL for on-startup DDL migrations only (sql/001-003). Falls
     # back to database_url when unset — local dev keeps working with one URL.
     migration_database_url: str = ""
+    founder_deploy_label: str = ""
     raptor_health_url: str = "http://127.0.0.1:8080/health"
     raptor_auth_url: str = "http://127.0.0.1:8000/api/v1/auth"
     raptor_api_url: str = ""

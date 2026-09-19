@@ -211,6 +211,23 @@ async def patch_customer_ops(org_id: int, request: Request, operator: OperatorDe
     return {"ok": True, "ops": ops}
 
 
+@app.patch("/api/founder/v1/customers/{org_id}/checklist")
+async def patch_customer_checklist(org_id: int, request: Request, operator: OperatorDep):
+    body = await request.json()
+    try:
+        checklist = await _provider(request).update_account_checklist(org_id, body, operator)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    await record(
+        request,
+        operator,
+        "customers.checklist.update",
+        org_id,
+        detail=f"done={checklist.get('done_count')}/{checklist.get('total')}",
+    )
+    return {"ok": True, "checklist": checklist}
+
+
 @app.post("/api/founder/v1/customers/{org_id}/notes")
 async def add_note(org_id: int, request: Request, operator: OperatorDep):
     await record(request, operator, "customers.note", org_id)
@@ -278,7 +295,12 @@ async def retention(request: Request, operator: OperatorDep):
 @app.get("/api/founder/v1/ops/platform")
 async def ops(request: Request, operator: OperatorDep):
     await record(request, operator, "ops.read")
-    return await _provider(request).ops()
+    payload = await _provider(request).ops()
+    payload["command_version"] = APP_VERSION
+    label = (settings.founder_deploy_label or "").strip()
+    payload["command_deploy_label"] = label or None
+    payload["command_env"] = settings.app_env
+    return payload
 
 
 @app.get("/api/founder/v1/goals")
