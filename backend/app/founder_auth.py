@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from app.auth import Operator, is_platform_operator, operator_from_access_token, require_operator
 from app.config import settings
+from app.prod_checks import access_max_age_seconds
 from app.rate_limit import client_ip, enforce_login_rate_limit
 
 logger = logging.getLogger("vex.command.auth")
@@ -23,8 +24,8 @@ REFRESH_COOKIE = "founder_refresh"
 # Command doesn't control — never edit Raptor). This doesn't shrink the
 # token's real exp, but it makes the browser drop the cookie sooner, forcing
 # a /refresh round-trip — and a fresh Raptor session revalidation — every
-# 45 minutes instead of letting one session coast for the full 2h window.
-ACCESS_MAX_AGE = 45 * 60
+# Default 45m — override with FOUNDER_SESSION_TTL_MINUTES (prod gate: 30–120).
+ACCESS_MAX_AGE = 45 * 60  # documented default; runtime uses access_max_age_seconds()
 REFRESH_MAX_AGE = 7 * 24 * 60 * 60
 
 
@@ -43,7 +44,7 @@ def _secure_cookies() -> bool:
 
 def _set_session_cookies(response: Response, access: str, refresh: str | None) -> None:
     common = {"httponly": True, "secure": _secure_cookies(), "samesite": "lax", "path": "/"}
-    response.set_cookie(ACCESS_COOKIE, access, max_age=ACCESS_MAX_AGE, **common)
+    response.set_cookie(ACCESS_COOKIE, access, max_age=access_max_age_seconds(), **common)
     if refresh:
         response.set_cookie(REFRESH_COOKIE, refresh, max_age=REFRESH_MAX_AGE, **common)
 

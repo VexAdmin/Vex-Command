@@ -260,6 +260,35 @@ def test_nginx_example_has_login_rate_limit_zone():
     assert "limit_req zone=founder_login" in text
 
 
+def test_backup_founder_script_exists():
+    script = Path(__file__).resolve().parents[2] / "deploy" / "backup-founder-schema.sh"
+    text = script.read_text()
+    assert "pg_dump" in text and "-n founder" in text
+
+
+def test_validate_prod_settings_rejects_http_origin(monkeypatch):
+    from app.prod_checks import validate_prod_settings
+
+    monkeypatch.setattr(settings, "app_env", "prod")
+    monkeypatch.setattr(settings, "console_origin", "http://ops.vexraptor.com")
+    monkeypatch.setattr(settings, "founder_auth_mode", "jwt")
+    monkeypatch.setattr(settings, "data_source", "sql")
+    monkeypatch.setattr(settings, "database_url", "postgresql://x")
+    with pytest.raises(RuntimeError, match="https"):
+        validate_prod_settings()
+
+
+def test_validate_prod_settings_ok(monkeypatch):
+    from app.prod_checks import validate_prod_settings
+
+    monkeypatch.setattr(settings, "app_env", "prod")
+    monkeypatch.setattr(settings, "console_origin", "https://ops.vexraptor.com")
+    monkeypatch.setattr(settings, "founder_auth_mode", "jwt")
+    monkeypatch.setattr(settings, "data_source", "sql")
+    monkeypatch.setattr(settings, "database_url", "postgresql://x")
+    validate_prod_settings()
+
+
 def test_roles_sql_audit_log_insert_only():
     roles = Path(__file__).resolve().parents[2] / "sql" / "003_roles.sql"
     text = roles.read_text()

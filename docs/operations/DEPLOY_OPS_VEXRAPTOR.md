@@ -128,12 +128,41 @@ Fixes en imagen: `ENV SQL_DIR=/app/sql` · fallback SPA en rutas Vue (`backend/a
 
 ---
 
-## Seguridad pendiente (go-live)
+## Go-live (Command)
 
-- [x] **C-01b** — Login UI en `ops` (rebuild + `run-vex-founder.sh` tras `git pull`)
-- [ ] Cloudflare Access o IP allowlist (capa extra opcional)
-- [ ] WAF rules
-- [ ] Backup `pg_dump` schema `founder`
+| Ítem | Estado | Notas |
+|------|--------|--------|
+| CORS solo `CONSOLE_ORIGIN` | Hecho (S6) | `APP_ENV=prod` → sin `localhost:5174` |
+| Sesión 30–60 min | Hecho (S7) | Cookie access default **45m** · `FOUNDER_SESSION_TTL_MINUTES` |
+| Auth JWT en prod | Hecho | `FOUNDER_AUTH_MODE=jwt` · arranque falla si mock en prod |
+| Backup schema `founder` | Script | `deploy/backup-founder-schema.sh` |
+| Runbook MRR ≠ Stripe | Doc | `docs/operations/RUNBOOK_MRR_STRIPE.md` (F3 pendiente) |
+| Cloudflare Access / IP allowlist | Opcional | Capa extra |
+| WAF rules | Opcional | Cloudflare |
+
+### Backup `founder` (droplet)
+
+```bash
+bash ~/Vex-Command/deploy/backup-founder-schema.sh ~/founder-backups
+ls -lt ~/founder-backups | head
+```
+
+Restaurar (solo en emergencia, revisar SQL antes de aplicar):
+
+```bash
+gunzip -c ~/founder-backups/founder-schema-YYYYMMDD-HHMMSSZ.sql.gz \
+  | docker exec -i vex-raptor-postgres psql -U vex_raptor -d vex_raptor
+```
+
+### Verificar CORS + sesión tras deploy
+
+```bash
+curl -sI -X OPTIONS https://ops.vexraptor.com/api/founder/v1/overview \
+  -H "Origin: https://ops.vexraptor.com" \
+  -H "Access-Control-Request-Method: GET" | grep -i access-control
+```
+
+En **Ajustes** (Settings API): `session_ttl` debe mostrar `45m` (o el valor configurado).
 
 ---
 

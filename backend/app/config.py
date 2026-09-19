@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # back to database_url when unset — local dev keeps working with one URL.
     migration_database_url: str = ""
     founder_deploy_label: str = ""
+    # Browser access cookie lifetime (minutes). Prod gate: 30–120 (see prod_checks).
+    founder_session_ttl_minutes: int = 45
     raptor_health_url: str = "http://127.0.0.1:8080/health"
     raptor_auth_url: str = "http://127.0.0.1:8000/api/v1/auth"
     raptor_api_url: str = ""

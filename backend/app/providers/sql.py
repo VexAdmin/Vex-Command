@@ -11,7 +11,7 @@ from app import kpis
 from app.auth import Operator
 from app.config import settings
 from app.db import session_factory
-from app.founder_auth import ACCESS_MAX_AGE
+from app.prod_checks import access_max_age_seconds
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary, row_to_deal
 from app.seed import build_world
 from app.providers.mock import MockProvider
@@ -857,7 +857,7 @@ class SqlProvider:
             "fy_start": "January",
             # S7: real access-cookie lifetime, not a fixed marketing string —
             # see ACCESS_MAX_AGE in founder_auth.py for the actual value/why.
-            "session_ttl": f"{ACCESS_MAX_AGE // 60}m",
+            "session_ttl": f"{access_max_age_seconds() // 60}m",
             # S7: no MFA is implemented on this session (Raptor's own login
             # has none either). Showing "required" was a lie.
             "mfa": "no implementado",

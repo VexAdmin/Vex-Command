@@ -5,7 +5,7 @@ from typing import Any, Protocol
 
 from app.auth import Operator
 from app.config import settings
-from app.founder_auth import ACCESS_MAX_AGE
+from app.prod_checks import access_max_age_seconds
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary
 from app.account_checklist import (
     CHECKLIST_FIELDS,
@@ -374,7 +374,7 @@ class MockProvider:
             "fy_start": "January",
             # S7: real access-cookie lifetime and honest MFA state — see
             # founder_auth.ACCESS_MAX_AGE and the SqlProvider equivalent.
-            "session_ttl": f"{ACCESS_MAX_AGE // 60}m",
+            "session_ttl": f"{access_max_age_seconds() // 60}m",
             "mfa": "no implementado",
             "ip_allowlist": False,
             "dataset": self._world.dataset,

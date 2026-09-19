@@ -15,6 +15,7 @@ from app.auth import Operator, require_operator
 from app.config import settings
 from app.founder_auth import router as founder_auth_router
 from app.db import close_db, init_db
+from app.prod_checks import validate_prod_settings
 from app.providers import build_provider
 from app.rate_limit import enforce_targets_rate_limit
 from app.targets_service import access_token_from_request, add_target, remove_target
@@ -26,6 +27,7 @@ APP_VERSION = "0.2.0"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_prod_settings()
     await init_db()
     app.state.provider = build_provider()
     yield
