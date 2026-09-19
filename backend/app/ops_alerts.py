@@ -30,7 +30,7 @@ def alerts_from_orgs(orgs: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "severity": "warn",
                 "title": f"{len(inactive)} cuenta(s) sin actividad {INACTIVE_DAYS}d+",
                 "body": _name_list(inactive),
-                "href": "/customers?sort=last_active",
+                "href": "/customers?view=inactive_14d&sort=last_active",
             }
         )
     cold_usage = [o for o in orgs if o.get("scans_30d", 0) == 0 and o.get("last_active_days", 0) < INACTIVE_DAYS]
@@ -40,7 +40,7 @@ def alerts_from_orgs(orgs: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "severity": "info",
                 "title": f"{len(cold_usage)} cuenta(s) sin scans en 30d",
                 "body": _name_list(cold_usage),
-                "href": "/customers",
+                "href": "/customers?view=no_scans_30d",
             }
         )
     return out
@@ -74,6 +74,6 @@ async def alerts_empty_allowlist(session: AsyncSession) -> list[dict[str, Any]]:
             "severity": "crit",
             "title": f"{len(rows)} cuenta(s) con allowlist vacía",
             "body": names,
-            "href": f"/customers/{first_id}",
+            "href": "/customers?view=empty_allowlist",
         }
     ]

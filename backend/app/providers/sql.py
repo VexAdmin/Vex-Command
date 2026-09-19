@@ -16,6 +16,7 @@ from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary, row_to
 from app.seed import build_world
 from app.providers.mock import MockProvider
 from app.account_ops import default_next_step, normalize_pilot_stage, ops_payload
+from app.customer_filters import filter_customer_rows, sort_customer_rows
 from app.ops_alerts import alerts_empty_allowlist, alerts_from_orgs
 from app.target_audit import parse_target_audit_row
 from app.target_policy import entry_to_display, parse_allowed_targets
@@ -246,23 +247,61 @@ class SqlProvider:
     async def cohorts(self) -> dict[str, Any]:
         return {"cohorts": []}
 
+    async def _empty_allowlist_org_ids(self, session: Any) -> set[int]:
+        r = await session.execute(
+            text(
+                """
+                SELECT org_id FROM founder.v_org_targets
+                WHERE allowed_targets IS NULL OR trim(allowed_targets) = ''
+                """
+            )
+        )
+        return {int(row.org_id) for row in r.fetchall()}
+
+    async def _pilot_stage_by_org(self, session: Any) -> dict[int, str]:
+        try:
+            r = await session.execute(
+                text("SELECT org_id, pilot_stage FROM founder.account_ops")
+            )
+            return {int(row.org_id): row.pilot_stage for row in r.fetchall()}
+        except Exception as exc:
+            logger.warning("account_ops list for filters failed: %s", exc)
+            return {}
+
     async def customers(
-        self, q: str, plan: str, risk: str, sort: str, cursor: int, limit: int
+        self,
+        q: str,
+        plan: str,
+        risk: str,
+        sort: str,
+        cursor: int,
+        limit: int,
+        *,
+        view: str = "",
+        pilot_stage: str = "",
     ) -> dict[str, Any]:
         rows = await self._orgs()
-        if q:
-            needle = q.lower()
-            rows = [o for o in rows if needle in o["name"].lower() or needle in o["slug"]]
-        if plan:
-            rows = [o for o in rows if o["plan"] == plan]
-        if risk:
-            rows = [o for o in rows if o["risk"] == risk]
-        if sort == "health":
-            rows = sorted(rows, key=lambda o: o["health"])
-        elif sort == "last_active":
-            rows = sorted(rows, key=lambda o: o["last_active_days"], reverse=True)
-        else:
-            rows = sorted(rows, key=lambda o: o["mrr"], reverse=True)
+        empty_ids: set[int] | None = None
+        pilot_map: dict[int, str] | None = None
+        need_db = view == "empty_allowlist" or bool(pilot_stage)
+        if need_db:
+            factory = session_factory()
+            async with factory() as session:
+                if view == "empty_allowlist":
+                    empty_ids = await self._empty_allowlist_org_ids(session)
+                if pilot_stage:
+                    pilot_map = await self._pilot_stage_by_org(session)
+        rows = filter_customer_rows(
+            rows,
+            q=q,
+            plan=plan,
+            risk=risk,
+            view=view,
+            pilot_stage=pilot_stage,
+            empty_allowlist_ids=empty_ids,
+            pilot_stage_by_org=pilot_map,
+        )
+        rows = sort_customer_rows(rows, sort)
         slice_ = rows[cursor : cursor + limit]
         return {
             "total": len(rows),

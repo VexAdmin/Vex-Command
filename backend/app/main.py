@@ -135,12 +135,16 @@ async def customers(
     q: str = "",
     plan: str = "",
     risk: str = "",
+    view: str = "",
+    pilot_stage: str = "",
     sort: str = "mrr",
     cursor: int = 0,
     limit: int = Query(25, le=100),
 ):
     await record(request, operator, "customers.list")
-    return await _provider(request).customers(q, plan, risk, sort, cursor, limit)
+    return await _provider(request).customers(
+        q, plan, risk, sort, cursor, limit, view=view, pilot_stage=pilot_stage
+    )
 
 
 @app.get("/api/founder/v1/customers/{org_id}")

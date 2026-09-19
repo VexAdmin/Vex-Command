@@ -8,6 +8,7 @@ from app.config import settings
 from app.founder_auth import ACCESS_MAX_AGE
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary
 from app.account_ops import default_next_step, normalize_pilot_stage, ops_payload
+from app.customer_filters import filter_customer_rows, sort_customer_rows
 from app.ops_alerts import alerts_from_orgs
 from app.seed import Deal, World, build_world, deal_dict, org_dict
 from app import kpis
@@ -22,7 +23,16 @@ class FounderProvider(Protocol):
     async def manual_revenue(self) -> dict[str, Any]: ...
     async def add_manual_revenue(self, body: dict[str, Any], operator: Operator) -> dict[str, Any]: ...
     async def customers(
-        self, q: str, plan: str, risk: str, sort: str, cursor: int, limit: int
+        self,
+        q: str,
+        plan: str,
+        risk: str,
+        sort: str,
+        cursor: int,
+        limit: int,
+        *,
+        view: str = "",
+        pilot_stage: str = "",
     ) -> dict[str, Any]: ...
     async def customer(self, org_id: int) -> dict[str, Any] | None: ...
     async def add_note(self, org_id: int, body: str, operator: Operator) -> dict[str, Any]: ...
@@ -99,28 +109,36 @@ class MockProvider:
         return {"cohorts": self._world.cohorts}
 
     async def customers(
-        self, q: str, plan: str, risk: str, sort: str, cursor: int, limit: int
+        self,
+        q: str,
+        plan: str,
+        risk: str,
+        sort: str,
+        cursor: int,
+        limit: int,
+        *,
+        view: str = "",
+        pilot_stage: str = "",
     ) -> dict[str, Any]:
-        rows = self._world.orgs
-        if q:
-            needle = q.lower()
-            rows = [o for o in rows if needle in o.name.lower() or needle in o.slug]
-        if plan:
-            rows = [o for o in rows if o.plan == plan]
-        if risk:
-            rows = [o for o in rows if o.risk == risk]
-        if sort == "health":
-            rows = sorted(rows, key=lambda o: o.health)
-        elif sort == "last_active":
-            rows = sorted(rows, key=lambda o: o.last_active_days, reverse=True)
-        else:
-            rows = sorted(rows, key=lambda o: o.mrr, reverse=True)
+        base = [org_dict(o) for o in self._world.orgs]
+        pilot_map = {oid: row["pilot_stage"] for oid, row in self._account_ops.items()}
+        rows = filter_customer_rows(
+            base,
+            q=q,
+            plan=plan,
+            risk=risk,
+            view=view,
+            pilot_stage=pilot_stage,
+            empty_allowlist_ids=set(),
+            pilot_stage_by_org=pilot_map,
+        )
+        rows = sort_customer_rows(rows, sort)
         slice_ = rows[cursor : cursor + limit]
         return {
             "total": len(rows),
             "cursor": cursor,
             "next_cursor": cursor + limit if cursor + limit < len(rows) else None,
-            "items": [org_dict(o) for o in slice_],
+            "items": slice_,
         }
 
     async def customer(self, org_id: int) -> dict[str, Any] | None:

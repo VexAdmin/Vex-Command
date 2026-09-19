@@ -43,6 +43,19 @@ def test_customers_pagination(client):
     assert len(body["items"]) == 25
 
 
+def test_customers_view_inactive(client):
+    from app.ops_alerts import INACTIVE_DAYS
+
+    r = client.get(
+        "/api/founder/v1/customers",
+        params={"view": "inactive_14d", "limit": 100},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    for item in body["items"]:
+        assert item["last_active_days"] >= INACTIVE_DAYS
+
+
 def test_customer_360_audits_without_findings_payload(client):
     r = client.get("/api/founder/v1/customers/1")
     assert r.status_code == 200
