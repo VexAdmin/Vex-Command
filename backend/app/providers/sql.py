@@ -126,6 +126,41 @@ class SqlProvider:
     def __init__(self) -> None:
         self._fallback = MockProvider(build_world(settings.founder_seed, "pre_revenue"))
 
+    async def _fetch_account_ops_row(self, session: Any, org_id: int) -> Any:
+        try:
+            result = await session.execute(
+                text(
+                    "SELECT pilot_stage, next_step, updated_at, updated_by "
+                    "FROM founder.account_ops WHERE org_id = :org_id"
+                ),
+                {"org_id": org_id},
+            )
+            return result.first()
+        except Exception as exc:
+            logger.warning("account_ops read failed org_id=%s: %s", org_id, exc)
+            return None
+
+    async def _fetch_target_timeline(self, session: Any, org_id: int) -> list[dict[str, Any]]:
+        try:
+            audit = await session.execute(
+                text(
+                    "SELECT actor_email, action, path, created_at "
+                    "FROM founder.v_audit_log "
+                    "WHERE org_id = :org_id AND action LIKE 'customers.targets.%' "
+                    "ORDER BY created_at DESC LIMIT 25"
+                ),
+                {"org_id": org_id},
+            )
+            return [
+                item
+                for row in audit.fetchall()
+                for item in [parse_target_audit_row(dict(row._mapping))]
+                if item
+            ]
+        except Exception as exc:
+            logger.warning("target timeline read failed org_id=%s: %s", org_id, exc)
+            return []
+
     async def _orgs(self) -> list[dict[str, Any]]:
         factory = session_factory()
         async with factory() as session:
@@ -159,8 +194,11 @@ class SqlProvider:
                 "href": "/customers?risk=risk",
             })
         alerts.extend(alerts_from_orgs(orgs))
-        async with factory() as session:
-            alerts.extend(await alerts_empty_allowlist(session))
+        try:
+            async with factory() as session:
+                alerts.extend(await alerts_empty_allowlist(session))
+        except Exception as exc:
+            logger.warning("empty allowlist alerts skipped: %s", exc)
         return {
             "dataset": self.dataset,
             "data_source": "sql",
@@ -276,29 +314,8 @@ class SqlProvider:
                 }
                 for row in scans.fetchall()
             ]
-            ops_row = await session.execute(
-                text(
-                    "SELECT pilot_stage, next_step, updated_at, updated_by "
-                    "FROM founder.account_ops WHERE org_id = :org_id"
-                ),
-                {"org_id": org_id},
-            )
-            ops_db = ops_row.first()
-            audit = await session.execute(
-                text(
-                    "SELECT actor_email, action, path, created_at "
-                    "FROM founder.v_audit_log "
-                    "WHERE org_id = :org_id AND action LIKE 'customers.targets.%' "
-                    "ORDER BY created_at DESC LIMIT 25"
-                ),
-                {"org_id": org_id},
-            )
-            target_timeline = [
-                item
-                for row in audit.fetchall()
-                for item in [parse_target_audit_row(dict(row._mapping))]
-                if item
-            ]
+            ops_db = await self._fetch_account_ops_row(session, org_id)
+            target_timeline = await self._fetch_target_timeline(session, org_id)
         fallback_step = default_next_step(org["risk"])
         if ops_db:
             ops = ops_payload(
