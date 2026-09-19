@@ -107,17 +107,17 @@ def test_sql_customer_scan_metrics_fallback(sql_client):
     assert len(body["recent_scans"]) >= 1
 
 
-def test_sql_ops_unwired_metrics_are_null(sql_client):
+def test_sql_ops_aggregate_metrics(sql_client):
     r = sql_client.get("/api/founder/v1/ops/platform")
     assert r.status_code == 200
     body = r.json()
-    assert body["uptime_30d"] is None
-    assert body["errors_5xx_24h"] is None
-    assert body["playwright"] is None
-    assert body["interactsh"] is None
-    assert body["gemini_24h"] is None
     assert isinstance(body["arq_depth"], int)
+    assert isinstance(body["scans_7d"], int)
+    assert isinstance(body["wau_orgs"], int)
+    assert body["alembic_head"] not in (None, "")
     assert body["health"] in {"ok", "unknown"}
+    # Raptor /health does not expose these yet in most envs:
+    assert body.get("playwright") in (None, "ok", "fail-soft")
 
 
 def test_sql_goals_no_mock_alert_rules(sql_client):

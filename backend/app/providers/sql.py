@@ -726,12 +726,13 @@ class SqlProvider:
         factory = session_factory()
         async with factory() as session:
             row = (await session.execute(text("SELECT * FROM founder.v_platform_scan_ops"))).one()
+            usage = (await session.execute(text("SELECT * FROM founder.v_usage_platform"))).one()
             alembic = None
             try:
-                v = await session.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+                v = await session.execute(text("SELECT founder.f_alembic_head()"))
                 alembic = v.scalar()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("alembic head read failed: %s", exc)
         health_payload: dict[str, Any] = {"status": "unknown", "version": "—"}
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
@@ -740,21 +741,34 @@ class SqlProvider:
                     health_payload = r.json()
         except Exception as exc:
             logger.info("raptor health unreachable: %s", exc)
+
+        def _health_field(key: str) -> Any:
+            val = health_payload.get(key)
+            return val if val not in (None, "") else None
+
         return {
             "health": health_payload.get("status", "unknown"),
             "version": health_payload.get("version", "—"),
             "command_version": None,
             "command_deploy_label": None,
             "command_env": None,
-            "uptime_30d": None,
             "arq_depth": row.running_scans,
             "orphaned_running": row.orphaned_running,
-            "errors_5xx_24h": None,
+            "scans_7d": int(row.scans_7d or 0),
+            "findings_hc_7d": int(row.findings_hc_7d or 0),
+            "wau_orgs": int(usage.wau_orgs or 0),
+            "platform_scans_30d": int(usage.scans_30d or 0),
+            "uptime_30d": _health_field("uptime_30d"),
+            "errors_5xx_24h": _health_field("errors_5xx_24h"),
             "alembic_head": alembic or "—",
-            "playwright": None,
-            "interactsh": None,
-            "gemini_24h": None,
+            "playwright": _health_field("playwright"),
+            "interactsh": _health_field("interactsh"),
+            "gemini_24h": _health_field("gemini_24h"),
             "raptor_health_url": settings.raptor_health_url,
+            "telemetry_note": (
+                "Uptime, 5xx, Playwright, Interactsh y Gemini 24h requieren telemetría en Raptor "
+                "(PRICE-00) o campos extra en /health — aún no expuestos."
+            ),
         }
 
     async def goals(self) -> dict[str, Any]:

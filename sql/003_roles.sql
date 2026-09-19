@@ -80,6 +80,7 @@ TO vex_founder_ro;
 REVOKE ALL ON public.scan_history FROM vex_founder_ro;
 
 GRANT EXECUTE ON FUNCTION founder.f_org_targets() TO vex_founder_ro;
+GRANT EXECUTE ON FUNCTION founder.f_alembic_head() TO vex_founder_ro;
 
 -- Scans/metrics live behind Raptor RLS — same SECURITY DEFINER pattern as targets.
 GRANT EXECUTE ON FUNCTION founder.f_scan_history() TO vex_founder_ro;

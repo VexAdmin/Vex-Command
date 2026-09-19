@@ -185,6 +185,7 @@ async def _run_migrations() -> None:
 
         if has_raptor:
             await _run_sql_file_tx(SQL_DIR / "002_aggregate_views.sql", mig_engine)
+            await _run_sql_file_tx(SQL_DIR / "008_alembic_head_fn.sql", mig_engine)
         else:
             logger.warning("Skipping aggregate views")
 

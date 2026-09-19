@@ -45,6 +45,14 @@ def test_patch_account_checklist_mock(client):
     assert get2.json()["checklist"]["done_count"] == 2
 
 
+def test_ops_includes_aggregate_fields(client):
+    r = client.get("/api/founder/v1/ops/platform")
+    assert r.status_code == 200
+    body = r.json()
+    assert "scans_7d" in body
+    assert "wau_orgs" in body
+
+
 def test_ops_includes_command_version(client):
     r = client.get("/api/founder/v1/ops/platform")
     assert r.status_code == 200
