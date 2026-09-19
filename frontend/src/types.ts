@@ -41,7 +41,7 @@ export interface Overview {
   arq_depth: number
   mrr_trend: number[] | null
   goal_net_new: { current: number | null; target: number }
-  alerts: { severity: string; title: string; body: string }[]
+  alerts: { severity: string; title: string; body: string; href?: string }[]
   billing_mode: string
   ledger_wired?: boolean
   ledger_month_usd?: number | null

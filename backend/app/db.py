@@ -148,6 +148,7 @@ async def _run_migrations() -> None:
     owns_mig_engine = mig_engine is not _engine
     try:
         await _run_sql_file_tx(SQL_DIR / "001_founder_schema.sql", mig_engine)
+        await _run_sql_file_tx(SQL_DIR / "006_account_ops.sql", mig_engine)
 
         # Probe with mig_engine (owner role), not the runtime engine: the runtime
         # role (vex_founder_ro) only sees organizations/users in information_schema

@@ -190,6 +190,23 @@ async def remove_customer_target(org_id: int, request: Request, operator: Operat
     return result
 
 
+@app.patch("/api/founder/v1/customers/{org_id}/ops")
+async def patch_customer_ops(org_id: int, request: Request, operator: OperatorDep):
+    body = await request.json()
+    try:
+        ops = await _provider(request).update_account_ops(org_id, body, operator)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    await record(
+        request,
+        operator,
+        "customers.ops.update",
+        org_id,
+        detail=f"stage={ops.get('pilot_stage')}",
+    )
+    return {"ok": True, "ops": ops}
+
+
 @app.post("/api/founder/v1/customers/{org_id}/notes")
 async def add_note(org_id: int, request: Request, operator: OperatorDep):
     await record(request, operator, "customers.note", org_id)

@@ -61,7 +61,44 @@
           <span class="tag warn">{{ w }}</span>
         </div>
         <p v-if="targetsBusy" class="kpi-sub">Guardando…</p>
+        <div v-if="(data.target_timeline || []).length" class="target-timeline">
+          <h4 class="target-timeline-title">Historial allowlist</h4>
+          <div v-for="(ev, i) in data.target_timeline" :key="i" class="list-row timeline-row">
+            <span>
+              <span class="tag" :class="ev.kind === 'add' ? 'good' : 'warn'">
+                {{ ev.kind === 'add' ? 'Añadido' : 'Quitado' }}
+              </span>
+              <span class="mono timeline-entry">{{ ev.entry }}</span>
+            </span>
+            <span class="mono timeline-meta">{{ ev.actor_email }} · {{ formatScanDate(ev.created_at) }}</span>
+          </div>
+        </div>
       </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>Operación</h3>
+      <p class="lede" style="margin-bottom:10px">Estado del piloto y próximo hito — solo en Command (no toca Raptor).</p>
+      <div v-if="opsError" class="targets-error">{{ opsError }}</div>
+      <form class="ops-form" @submit.prevent="saveOps">
+        <label class="ops-field">
+          Etapa
+          <select v-model="opsPilotStage" :disabled="opsBusy">
+            <option value="discovery">Discovery</option>
+            <option value="pilot">Piloto</option>
+            <option value="production">Producción</option>
+            <option value="paused">Pausado</option>
+          </select>
+        </label>
+        <label class="ops-field ops-field-grow">
+          Próximo hito
+          <input v-model="opsNextStep" type="text" placeholder="Ej. Quarterly review" :disabled="opsBusy" />
+        </label>
+        <button class="btn primary" type="submit" :disabled="opsBusy">Guardar</button>
+      </form>
+      <p v-if="data.ops?.updated_by" class="kpi-sub">
+        Actualizado por {{ data.ops.updated_by }}
+        <span v-if="data.ops.updated_at"> · {{ formatScanDate(data.ops.updated_at) }}</span>
+      </p>
     </div>
     <div class="card" style="margin-top:14px">
       <h3>Scans recientes</h3>
@@ -84,7 +121,7 @@
     </div>
     <div class="card" style="margin-top:14px">
       <h3>Notas internas</h3>
-      <p class="lede" style="margin-bottom:10px">Siguiente paso: {{ data.next_step }}</p>
+      <p class="lede" style="margin-bottom:10px">Próximo hito: {{ data.ops?.next_step || data.next_step }}</p>
       <form class="filters" @submit.prevent="saveNote">
         <input v-model="note" placeholder="Nota interna…" style="flex:1;min-width:180px" />
         <button class="btn primary" type="submit">Guardar</button>
@@ -162,9 +199,26 @@ interface RecentScan {
   finding_count: number
 }
 
+interface TargetTimelineEvent {
+  kind: 'add' | 'remove'
+  entry: string
+  actor_email: string
+  created_at: string
+}
+
+interface AccountOps {
+  pilot_stage: string
+  pilot_stage_label: string
+  next_step: string | null
+  updated_at?: string | null
+  updated_by?: string | null
+}
+
 interface Account {
   org: Org
   notes: { body: string; actor_email: string }[]
+  ops: AccountOps
+  target_timeline: TargetTimelineEvent[]
   authorized_targets: string[]
   recent_scans: RecentScan[]
   usage_30d: { scans: number; findings_hc: number; reports: number }
@@ -186,6 +240,10 @@ const loadError = ref(false)
 const newTarget = ref('')
 const targetsBusy = ref(false)
 const targetsError = ref('')
+const opsPilotStage = ref('pilot')
+const opsNextStep = ref('')
+const opsBusy = ref(false)
+const opsError = ref('')
 const removePending = ref<string | null>(null)
 const removeConfirmText = ref('')
 const removeConfirmInput = ref<HTMLInputElement | null>(null)
@@ -250,8 +308,33 @@ async function load() {
   data.value = null
   try {
     data.value = await api<Account>(`/customers/${route.params.id}`)
+    if (data.value?.ops) {
+      opsPilotStage.value = data.value.ops.pilot_stage
+      opsNextStep.value = data.value.ops.next_step || ''
+    }
   } catch {
     loadError.value = true
+  }
+}
+
+async function saveOps() {
+  if (!data.value) return
+  opsBusy.value = true
+  opsError.value = ''
+  try {
+    const result = await api<{ ops: AccountOps }>(`/customers/${route.params.id}/ops`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        pilot_stage: opsPilotStage.value,
+        next_step: opsNextStep.value,
+      }),
+    })
+    data.value.ops = result.ops
+    data.value.next_step = result.ops.next_step || data.value.next_step
+  } catch {
+    opsError.value = 'No se pudo guardar la operación de cuenta.'
+  } finally {
+    opsBusy.value = false
   }
 }
 
@@ -416,5 +499,56 @@ watch(removePending, (pending, _, onCleanup) => {
 }
 .btn.danger:disabled {
   opacity: 0.45;
+}
+.target-timeline {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, #d5deea);
+}
+.target-timeline-title {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.timeline-row {
+  flex-wrap: wrap;
+  font-size: 0.84rem;
+}
+.timeline-entry {
+  margin-left: 8px;
+}
+.timeline-meta {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+.ops-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+.ops-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.ops-field-grow {
+  flex: 1;
+  min-width: 200px;
+}
+.ops-field select,
+.ops-field input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  font-size: 0.85rem;
+  color: var(--ink);
 }
 </style>

@@ -1,4 +1,9 @@
-"""Proxy to Vex Raptor org config API."""
+"""Proxy to Vex Raptor org config API.
+
+⚠️ RAPTOR TOUCH: changes here affect production Raptor deploy + JWT sessions.
+Prefer founder SQL views for reads; use this module only for org config PATCH/GET
+when unavoidable. See docs/operations/COMMAND_RAPTOR_BOUNDARY.md.
+"""
 
 from __future__ import annotations
 

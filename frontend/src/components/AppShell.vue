@@ -2,10 +2,13 @@
   <div class="app">
     <aside class="side">
       <div class="brand">
-        <img src="/vex-logo.svg" alt="VEX" />
+        <img class="brand-logo" src="/vex-logo.svg" alt="" width="32" height="32" />
         <div class="brand-text">
-          <span class="brand-title">VEX Command</span>
-          <span class="brand-sub">Operaciones de plataforma</span>
+          <p class="brand-title">
+            <span class="brand-vex">VEX</span>
+            <span class="brand-product">Command</span>
+          </p>
+          <p class="brand-sub">Operaciones de plataforma</p>
         </div>
       </div>
       <div class="nav-scroll">
@@ -18,7 +21,8 @@
             :class="{ active: isOn(item.to) }"
             :to="item.to"
           >
-            <span class="ico">{{ item.ico }}</span>{{ item.label }}
+            <span class="nav-index" aria-hidden="true">{{ item.ico }}</span>
+            <span class="nav-label">{{ item.label }}</span>
           </RouterLink>
         </template>
       </div>
@@ -29,7 +33,11 @@
 
     <div class="main">
       <header class="topbar">
-        <div class="crumb">VEX Command / <b>{{ title }}</b></div>
+        <div class="crumb">
+          <span class="crumb-root">VEX Command</span>
+          <span class="crumb-sep" aria-hidden="true">/</span>
+          <span class="crumb-page">{{ title }}</span>
+        </div>
         <div class="top-actions">
           <span class="pill"><span class="dot" /> {{ datasetLabel }}</span>
           <button class="btn" type="button" @click="exportCsv">Exportar cuentas</button>

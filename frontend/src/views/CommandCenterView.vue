@@ -47,11 +47,12 @@
       </div>
     </div>
     <div v-if="realAlerts.length" class="card" style="margin-top:14px">
-      <h3>Alertas</h3>
+      <h3>Alertas operativas</h3>
       <div v-for="a in realAlerts" :key="a.title" class="alert" :class="a.severity">
         <div>
           <div class="t">{{ a.title }}</div>
           {{ a.body }}
+          <RouterLink v-if="a.href" class="alert-link" :to="a.href">Ver cuentas →</RouterLink>
         </div>
       </div>
     </div>
@@ -60,6 +61,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { api } from '@/api/client'
 import { money, num } from '@/lib/format'
 import type { Overview } from '@/types'

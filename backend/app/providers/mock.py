@@ -7,6 +7,8 @@ from app.auth import Operator
 from app.config import settings
 from app.founder_auth import ACCESS_MAX_AGE
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary
+from app.account_ops import default_next_step, normalize_pilot_stage, ops_payload
+from app.ops_alerts import alerts_from_orgs
 from app.seed import Deal, World, build_world, deal_dict, org_dict
 from app import kpis
 
@@ -46,6 +48,8 @@ class MockProvider:
         self._world = world
         self.dataset = world.dataset
         self._manual_revenue: list[dict[str, Any]] = []
+        self._account_ops: dict[int, dict[str, Any]] = {}
+        self._target_timeline: dict[int, list[dict[str, Any]]] = {}
 
     def _ledger_month_usd(self) -> float:
         prefix = date.today().strftime("%Y-%m")
@@ -62,6 +66,9 @@ class MockProvider:
             return base
         ledger_month = self._ledger_month_usd()
         open_deals = sum(1 for deal in self._world.deals if deal.stage not in ("won", "lost"))
+        org_items = [org_dict(o) for o in self._world.orgs]
+        extra_alerts = alerts_from_orgs(org_items)
+        base_alerts = list(base.get("alerts") or [])
         base.update(
             {
                 "ledger_wired": True,
@@ -80,6 +87,7 @@ class MockProvider:
                 "orgs_with_plan": base.get("paying_logos", 0),
                 "open_deals": open_deals,
                 "stripe_wired": False,
+                "alerts": base_alerts + extra_alerts,
             }
         )
         return base
@@ -120,9 +128,22 @@ class MockProvider:
         if not org:
             return None
         notes = self._world.notes.get(org_id, [])
+        od = org_dict(org)
+        fallback = default_next_step(od["risk"])
+        stored = self._account_ops.get(org_id)
+        if stored:
+            ops = ops_payload(
+                pilot_stage=stored["pilot_stage"],
+                next_step=stored.get("next_step") or fallback,
+                updated_by=stored.get("updated_by"),
+            )
+        else:
+            ops = ops_payload(pilot_stage="pilot", next_step=fallback)
         return {
-            "org": org_dict(org),
+            "org": od,
             "notes": notes,
+            "ops": ops,
+            "target_timeline": list(self._target_timeline.get(org_id, [])),
             "authorized_targets": [f"https://{org.slug}.example"],
             "recent_scans": [],
             "usage_30d": {
@@ -135,7 +156,7 @@ class MockProvider:
                 "cogs": org.cogs_gemini + org.cogs_infra,
                 "ratio": (org.cogs_gemini + org.cogs_infra) / org.mrr if org.mrr else 0,
             },
-            "next_step": "Call + value email" if org.risk == "risk" else "Quarterly review",
+            "next_step": ops["next_step"],
         }
 
     async def add_note(self, org_id: int, body: str, operator: Operator) -> dict[str, Any]:
@@ -145,6 +166,26 @@ class MockProvider:
         note = {"body": body, "actor_email": operator.email}
         self._world.notes.setdefault(org_id, []).insert(0, note)
         return note
+
+    async def update_account_ops(
+        self, org_id: int, body: dict[str, Any], operator: Operator
+    ) -> dict[str, Any]:
+        org = next((o for o in self._world.orgs if o.id == org_id), None)
+        if not org:
+            raise ValueError("org not found")
+        stage = normalize_pilot_stage(body.get("pilot_stage"))
+        next_step = (body.get("next_step") or "").strip() or None
+        self._account_ops[org_id] = {
+            "pilot_stage": stage,
+            "next_step": next_step,
+            "updated_by": operator.email,
+        }
+        od = org_dict(org)
+        return ops_payload(
+            pilot_stage=stage,
+            next_step=next_step or default_next_step(od["risk"]),
+            updated_by=operator.email,
+        )
 
     async def deals(self) -> dict[str, Any]:
         items = [deal_dict(d) for d in self._world.deals]

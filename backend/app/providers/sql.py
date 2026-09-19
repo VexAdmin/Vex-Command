@@ -15,6 +15,9 @@ from app.founder_auth import ACCESS_MAX_AGE
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary, row_to_deal
 from app.seed import build_world
 from app.providers.mock import MockProvider
+from app.account_ops import default_next_step, normalize_pilot_stage, ops_payload
+from app.ops_alerts import alerts_empty_allowlist, alerts_from_orgs
+from app.target_audit import parse_target_audit_row
 from app.target_policy import entry_to_display, parse_allowed_targets
 
 logger = logging.getLogger("vex.command.sql")
@@ -153,7 +156,11 @@ class SqlProvider:
                 "severity": "warn",
                 "title": f"{len(risky)} orgs en riesgo",
                 "body": "Sin scan reciente o uso bajo",
+                "href": "/customers?risk=risk",
             })
+        alerts.extend(alerts_from_orgs(orgs))
+        async with factory() as session:
+            alerts.extend(await alerts_empty_allowlist(session))
         return {
             "dataset": self.dataset,
             "data_source": "sql",
@@ -269,9 +276,47 @@ class SqlProvider:
                 }
                 for row in scans.fetchall()
             ]
+            ops_row = await session.execute(
+                text(
+                    "SELECT pilot_stage, next_step, updated_at, updated_by "
+                    "FROM founder.account_ops WHERE org_id = :org_id"
+                ),
+                {"org_id": org_id},
+            )
+            ops_db = ops_row.first()
+            audit = await session.execute(
+                text(
+                    "SELECT actor_email, action, path, created_at "
+                    "FROM founder.v_audit_log "
+                    "WHERE org_id = :org_id AND action LIKE 'customers.targets.%' "
+                    "ORDER BY created_at DESC LIMIT 25"
+                ),
+                {"org_id": org_id},
+            )
+            target_timeline = [
+                item
+                for row in audit.fetchall()
+                for item in [parse_target_audit_row(dict(row._mapping))]
+                if item
+            ]
+        fallback_step = default_next_step(org["risk"])
+        if ops_db:
+            ops = ops_payload(
+                pilot_stage=ops_db.pilot_stage,
+                next_step=ops_db.next_step or fallback_step,
+                updated_at=ops_db.updated_at.isoformat() if ops_db.updated_at else None,
+                updated_by=ops_db.updated_by,
+            )
+        else:
+            ops = ops_payload(
+                pilot_stage="pilot",
+                next_step=fallback_step,
+            )
         return {
             "org": org,
             "notes": notes,
+            "ops": ops,
+            "target_timeline": target_timeline,
             "authorized_targets": _parse_allowed_targets(
                 cfg_row.allowed_targets if cfg_row else None
             ),
@@ -282,7 +327,7 @@ class SqlProvider:
                 "reports": org["reports_30d"],
             },
             "margin": {"mrr": 0, "cogs": 0, "ratio": 0},
-            "next_step": "Call + value email" if org["risk"] == "risk" else "Quarterly review",
+            "next_step": ops["next_step"],
         }
 
     async def add_note(self, org_id: int, body: str, operator: Operator) -> dict[str, Any]:
@@ -299,6 +344,41 @@ class SqlProvider:
             )
             await session.commit()
         return {"body": body, "actor_email": operator.email}
+
+    async def update_account_ops(
+        self, org_id: int, body: dict[str, Any], operator: Operator
+    ) -> dict[str, Any]:
+        orgs = await self._orgs()
+        org = next((o for o in orgs if o["id"] == org_id), None)
+        if not org:
+            raise ValueError("org not found")
+        stage = normalize_pilot_stage(body.get("pilot_stage"))
+        next_step = (body.get("next_step") or "").strip() or None
+        factory = session_factory()
+        async with factory() as session:
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO founder.account_ops (org_id, pilot_stage, next_step, updated_by)
+                    VALUES (:org_id, :pilot_stage, :next_step, :updated_by)
+                    ON CONFLICT (org_id) DO UPDATE SET
+                        pilot_stage = EXCLUDED.pilot_stage,
+                        next_step = EXCLUDED.next_step,
+                        updated_by = EXCLUDED.updated_by,
+                        updated_at = now()
+                    """
+                ),
+                {
+                    "org_id": org_id,
+                    "pilot_stage": stage,
+                    "next_step": next_step,
+                    "updated_by": operator.email,
+                },
+            )
+            await session.commit()
+        refreshed = await self.customer(org_id)
+        assert refreshed is not None
+        return refreshed["ops"]
 
     async def deals(self) -> dict[str, Any]:
         factory = session_factory()
