@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from app.config import settings
 from app.raptor_client import (
+    delete_organization,
     get_org_allowed_targets,
     patch_org_allowed_targets,
     raptor_api_base,
@@ -31,6 +32,8 @@ def _mock_client(response: httpx.Response) -> MagicMock:
     client = MagicMock()
     client.get = AsyncMock(return_value=response)
     client.patch = AsyncMock(return_value=response)
+    client.delete = AsyncMock(return_value=response)
+    client.request = AsyncMock(return_value=response)
     client.__aenter__ = AsyncMock(return_value=client)
     client.__aexit__ = AsyncMock(return_value=False)
     return client
@@ -84,6 +87,27 @@ async def test_patch_maps_upstream_502_with_body():
     assert exc.value.status_code == 502
     assert exc.value.detail["code"] == "raptor_unavailable"
     assert exc.value.detail["raptor_status"] == 502
+
+
+@pytest.mark.asyncio
+async def test_delete_org_with_reason_uses_request_not_delete_json():
+    response = httpx.Response(204)
+    client = _mock_client(response)
+    with patch("app.raptor_client.httpx.AsyncClient", return_value=client):
+        await delete_organization(16, "token", reason="prueba")
+    client.request.assert_awaited_once()
+    assert client.request.await_args.args[0] == "DELETE"
+    client.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_delete_org_without_reason_uses_delete():
+    response = httpx.Response(204)
+    client = _mock_client(response)
+    with patch("app.raptor_client.httpx.AsyncClient", return_value=client):
+        await delete_organization(16, "token")
+    client.delete.assert_awaited_once()
+    client.request.assert_not_awaited()
 
 
 @pytest.mark.asyncio

@@ -161,10 +161,16 @@ async def delete_organization(
     url = _org_url(org_id)
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            kwargs: dict = {"headers": {"Authorization": f"Bearer {access_token}"}}
+            headers = {"Authorization": f"Bearer {access_token}"}
             if reason:
-                kwargs["json"] = {"reason": reason}
-            r = await client.delete(url, **kwargs)
+                r = await client.request(
+                    "DELETE",
+                    url,
+                    headers=headers,
+                    json={"reason": reason},
+                )
+            else:
+                r = await client.delete(url, headers=headers)
     except httpx.HTTPError as exc:
         logger.warning("raptor org DELETE failed org_id=%s url=%s: %s", org_id, url, exc)
         raise HTTPException(
