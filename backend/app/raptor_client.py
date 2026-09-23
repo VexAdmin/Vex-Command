@@ -48,6 +48,10 @@ def _org_config_url(org_id: int) -> str:
     return f"{raptor_api_base()}/orgs/{org_id}/config"
 
 
+def _org_url(org_id: int) -> str:
+    return f"{raptor_api_base()}/orgs/{org_id}"
+
+
 def _parse_json_response(response: httpx.Response, *, org_id: int, action: str) -> dict:
     try:
         data = response.json()
@@ -148,3 +152,52 @@ async def patch_org_allowed_targets(org_id: int, allowed_targets: str, access_to
             action="PATCH org config",
             body=r.text,
         )
+
+
+async def delete_organization(
+    org_id: int, access_token: str, *, reason: str | None = None
+) -> None:
+    """⚠️ RAPTOR TOUCH — requires DELETE /api/v1/orgs/{id} on Raptor."""
+    url = _org_url(org_id)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            kwargs: dict = {"headers": {"Authorization": f"Bearer {access_token}"}}
+            if reason:
+                kwargs["json"] = {"reason": reason}
+            r = await client.delete(url, **kwargs)
+    except httpx.HTTPError as exc:
+        logger.warning("raptor org DELETE failed org_id=%s url=%s: %s", org_id, url, exc)
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "raptor_unavailable",
+                "message": "Raptor no disponible. Reintenta más tarde.",
+            },
+        ) from exc
+    if r.status_code in (204, 200):
+        return
+    if r.status_code == 501:
+        raise HTTPException(
+            status_code=501,
+            detail={
+                "code": "raptor_not_implemented",
+                "message": (
+                    "Borrado de organización aún no está desplegado en Raptor. "
+                    "Ver docs/operations/RAPTOR_ORG_DELETE_API.md"
+                ),
+                "org_id": org_id,
+            },
+        )
+    logger.warning(
+        "raptor org DELETE failed org_id=%s url=%s status=%s body=%s",
+        org_id,
+        url,
+        r.status_code,
+        r.text[:500],
+    )
+    raise raptor_http_error(
+        r.status_code,
+        org_id=org_id,
+        action="DELETE organization",
+        body=r.text,
+    )

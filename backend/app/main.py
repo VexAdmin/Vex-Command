@@ -18,6 +18,7 @@ from app.db import close_db, init_db
 from app.prod_checks import validate_prod_settings
 from app.providers import build_provider
 from app.rate_limit import enforce_targets_rate_limit
+from app.org_delete_service import delete_customer_organization
 from app.targets_service import access_token_from_request, add_target, remove_target
 
 OperatorDep = Annotated[Operator, Depends(require_operator)]
@@ -211,6 +212,37 @@ async def patch_customer_ops(org_id: int, request: Request, operator: OperatorDe
         detail=f"stage={ops.get('pilot_stage')}",
     )
     return {"ok": True, "ops": ops}
+
+
+@app.delete("/api/founder/v1/customers/{org_id}")
+async def delete_customer_org(org_id: int, request: Request, operator: OperatorDep):
+    body = await request.json()
+    confirm = body.get("confirm", "")
+    reason = body.get("reason")
+    try:
+        if settings.resolved_data_source == "mock":
+            result = await _provider(request).delete_customer_organization(
+                org_id, operator, confirm=str(confirm), reason=reason
+            )
+        else:
+            token = access_token_from_request(request)
+            result = await delete_customer_organization(
+                org_id,
+                token,
+                operator,
+                confirm=str(confirm),
+                reason=reason,
+            )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    await record(
+        request,
+        operator,
+        "customers.org.delete",
+        org_id,
+        detail=(reason or "").strip() or "no reason",
+    )
+    return result
 
 
 @app.patch("/api/founder/v1/customers/{org_id}/checklist")

@@ -159,6 +159,70 @@
       <div v-if="!data.notes.length" class="empty">Sin notas todavía.</div>
     </div>
 
+    <div class="card danger-zone" style="margin-top:14px">
+      <h3>Zona peligrosa</h3>
+      <p class="lede">
+        Borra la organización en Raptor y los datos de operación en Command. Irreversible.
+        Usar solo para orgs de prueba o supresión GDPR acordada.
+      </p>
+      <button class="btn danger" type="button" :disabled="deleteOrgBusy" @click="openDeleteOrg">
+        Eliminar organización
+      </button>
+    </div>
+
+    <div
+      v-if="deleteOrgOpen"
+      class="modal-back"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-org-title"
+      @click.self="cancelDeleteOrg"
+    >
+      <div class="modal remove-target-modal">
+        <h3 id="delete-org-title">Eliminar organización</h3>
+        <p class="lede">
+          Vas a borrar <b>{{ data.org.name }}</b> (id {{ data.org.id }}) y todos sus datos en la plataforma.
+        </p>
+        <label class="ops-field" for="delete-org-reason">Motivo (opcional)</label>
+        <input
+          id="delete-org-reason"
+          v-model="deleteReason"
+          type="text"
+          placeholder="Ej. org de prueba / solicitud GDPR #…"
+          :disabled="deleteOrgBusy"
+        />
+        <label class="remove-target-label" for="delete-org-confirm">
+          Escribe <span class="mono">eliminar</span> para confirmar
+        </label>
+        <input
+          id="delete-org-confirm"
+          ref="deleteOrgConfirmInput"
+          v-model="deleteConfirmText"
+          class="remove-target-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="eliminar"
+          :disabled="deleteOrgBusy"
+          @keydown.enter.prevent="confirmDeleteOrg"
+        />
+        <p v-if="deleteOrgError" class="targets-error">{{ deleteOrgError }}</p>
+        <div class="remove-target-actions">
+          <button class="btn" type="button" :disabled="deleteOrgBusy" @click="cancelDeleteOrg">
+            Cancelar
+          </button>
+          <button
+            class="btn danger"
+            type="button"
+            :disabled="deleteOrgBusy || !deleteOrgConfirmReady"
+            @click="confirmDeleteOrg"
+          >
+            Eliminar para siempre
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div
       v-if="removePending"
       class="modal-back"
@@ -211,7 +275,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api/client'
 import { money, pct } from '@/lib/format'
 import { targetAddErrorMessage, targetRemoveErrorMessage } from '@/lib/targetErrors'
@@ -275,6 +339,7 @@ interface TargetsMutationResult {
 }
 
 const route = useRoute()
+const router = useRouter()
 const data = ref<Account | null>(null)
 const note = ref('')
 const loadError = ref(false)
@@ -293,11 +358,21 @@ const checklistItems = computed(() => data.value?.checklist?.items ?? [])
 const removePending = ref<string | null>(null)
 const removeConfirmText = ref('')
 const removeConfirmInput = ref<HTMLInputElement | null>(null)
+const deleteOrgOpen = ref(false)
+const deleteConfirmText = ref('')
+const deleteReason = ref('')
+const deleteOrgBusy = ref(false)
+const deleteOrgError = ref('')
+const deleteOrgConfirmInput = ref<HTMLInputElement | null>(null)
 
 const REMOVE_CONFIRM_WORD = 'eliminar'
 
 const removeConfirmReady = computed(
   () => removeConfirmText.value.trim().toLowerCase() === REMOVE_CONFIRM_WORD,
+)
+
+const deleteOrgConfirmReady = computed(
+  () => deleteConfirmText.value.trim().toLowerCase() === REMOVE_CONFIRM_WORD,
 )
 
 const isLastTargetPending = computed(() => {
@@ -458,6 +533,45 @@ async function confirmRemoveTarget() {
     targetsError.value = targetRemoveErrorMessage(e)
   } finally {
     targetsBusy.value = false
+  }
+}
+
+function openDeleteOrg() {
+  deleteOrgOpen.value = true
+  deleteConfirmText.value = ''
+  deleteReason.value = ''
+  deleteOrgError.value = ''
+  nextTick(() => deleteOrgConfirmInput.value?.focus())
+}
+
+function cancelDeleteOrg() {
+  if (deleteOrgBusy.value) return
+  deleteOrgOpen.value = false
+  deleteConfirmText.value = ''
+  deleteOrgError.value = ''
+}
+
+async function confirmDeleteOrg() {
+  if (!data.value || !deleteOrgConfirmReady.value) return
+  deleteOrgBusy.value = true
+  deleteOrgError.value = ''
+  try {
+    await api(`/customers/${route.params.id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({
+        confirm: 'eliminar',
+        reason: deleteReason.value.trim() || undefined,
+      }),
+    })
+    deleteOrgOpen.value = false
+    await router.push('/customers')
+  } catch (e) {
+    deleteOrgError.value =
+      e instanceof Error && e.message.includes('501')
+        ? 'Raptor aún no tiene borrado de org desplegado. Ver runbook con el equipo.'
+        : 'No se pudo eliminar la organización. Revisa permisos o scans en curso.'
+  } finally {
+    deleteOrgBusy.value = false
   }
 }
 

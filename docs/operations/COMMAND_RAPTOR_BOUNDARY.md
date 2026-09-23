@@ -9,5 +9,6 @@
 | New tenant APIs, RLS session fixes | `founder.*` tables, views, audit |
 | Reading `org_configs` via HTTP for display | `founder.v_org_targets` |
 | Target **mutations** (PATCH config) | Target timeline from `founder.v_audit_log` |
+| **DELETE organization** (`DELETE /orgs/{id}`) | Purge `founder.*` via `f_purge_org_command_data` + audit |
 
 When a task requires Raptor, stop and flag: **⚠️ RAPTOR TOUCH** — describe endpoint/schema impact before editing `Proyecto Vex-Raptor`.

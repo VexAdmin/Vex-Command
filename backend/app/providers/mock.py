@@ -7,6 +7,7 @@ from app.auth import Operator
 from app.config import settings
 from app.prod_checks import access_max_age_seconds
 from app.pipeline import DEFAULT_PROBABILITY, DEAL_STAGES, deals_summary
+from app.org_delete_service import CONFIRM_WORD
 from app.account_checklist import (
     CHECKLIST_FIELDS,
     checklist_defaults,
@@ -223,6 +224,32 @@ class MockProvider:
             next_step=next_step or default_next_step(od["risk"]),
             updated_by=operator.email,
         )
+
+    async def delete_customer_organization(
+        self,
+        org_id: int,
+        operator: Operator,
+        *,
+        confirm: str,
+        reason: str | None,
+    ) -> dict[str, Any]:
+        if (confirm or "").strip().lower() != CONFIRM_WORD:
+            raise ValueError("confirmation must be 'eliminar'")
+        org = next((o for o in self._world.orgs if o.id == org_id), None)
+        if not org:
+            raise ValueError("org not found")
+        self._world.orgs = [o for o in self._world.orgs if o.id != org_id]
+        self._account_ops.pop(org_id, None)
+        self._account_checklist.pop(org_id, None)
+        self._target_timeline.pop(org_id, None)
+        self._world.notes.pop(org_id, None)
+        self._world.deals = [d for d in self._world.deals if d.org_id != org_id]
+        return {
+            "ok": True,
+            "org_id": org_id,
+            "deleted_by": operator.email,
+            "reason": (reason or "").strip() or None,
+        }
 
     async def update_account_checklist(
         self, org_id: int, body: dict[str, Any], operator: Operator
