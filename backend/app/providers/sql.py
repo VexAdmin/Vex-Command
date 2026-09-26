@@ -29,15 +29,30 @@ from app.target_policy import entry_to_display, parse_allowed_targets
 
 logger = logging.getLogger("vex.command.sql")
 
+# Display labels aligned with GTM tiers (Eval ≠ Essential paid).
 PLAN_LABEL = {
-    "free": "Essential",
-    "pilot": "Essential",
-    "eval": "Essential",
+    "free": "Eval",
+    "eval": "Eval",
+    "pilot": "Pilot",
     "essential": "Essential",
     "professional": "Professional",
     "enterprise": "Enterprise",
     "pro": "Professional",
+    "mssp": "MSSP",
+    "system": "System",
 }
+
+
+def _org_billing_stage(plan_raw: str | None) -> str:
+    """eval / pilot / paid — for honest paying_logos (pre-revenue)."""
+    p = (plan_raw or "").lower()
+    if p == "pilot":
+        return "pilot"
+    if p in ("free", "eval"):
+        return "eval"
+    if p in ("essential", "professional", "pro", "enterprise", "mssp"):
+        return "paid"
+    return "eval"
 
 
 def _days_ago(dt: datetime | None) -> int:
@@ -97,11 +112,10 @@ def _row_to_org(row: Any) -> dict[str, Any]:
     last_active = row.last_active_at
     last_active_days = _days_ago(last_active)
     health = _health_score(last_active_days, row.is_active, row.scans_30d, row.seats)
-    plan = PLAN_LABEL.get((row.plan or "").lower(), row.plan or "Essential")
-    if isinstance(plan, str) and plan.lower() == "mssp":
-        plan = "MSSP"
-    elif isinstance(plan, str):
-        plan = plan.title() if plan.lower() not in PLAN_LABEL else PLAN_LABEL[plan.lower()]
+    raw_plan = (row.plan or "").lower()
+    plan = PLAN_LABEL.get(raw_plan)
+    if not plan:
+        plan = (row.plan or "Eval").strip().title() if row.plan else "Eval"
     slug = row.name.lower().replace(" ", "-")[:32]
     return {
         "id": row.org_id,
@@ -113,7 +127,7 @@ def _row_to_org(row: Any) -> dict[str, Any]:
         "risk": _risk(health),
         "region": "—",
         "channel": "direct",
-        "stage": "pilot" if (row.plan or "").lower() == "pilot" else "paid",
+        "stage": _org_billing_stage(row.plan),
         "last_active_days": last_active_days,
         "scans_30d": row.scans_30d,
         "findings_hc_30d": row.findings_hc_30d,
@@ -191,7 +205,7 @@ class SqlProvider:
 
     async def overview(self) -> dict[str, Any]:
         orgs = await self._orgs()
-        with_plan = [o for o in orgs if o["stage"] != "pilot"]
+        with_plan = [o for o in orgs if o["stage"] == "paid"]
         pilots = len([o for o in orgs if o["stage"] == "pilot"])
         factory = session_factory()
         async with factory() as session:

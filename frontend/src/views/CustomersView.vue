@@ -24,6 +24,8 @@
       <input v-model="q" placeholder="Buscar org…" style="min-width:220px" @keyup.enter="load(0)" />
       <select v-model="plan" @change="load(0)">
         <option value="">Todos los planes</option>
+        <option>Eval</option>
+        <option>Pilot</option>
         <option>Essential</option>
         <option>Professional</option>
         <option>Enterprise</option>

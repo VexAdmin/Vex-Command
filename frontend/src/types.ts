@@ -1,4 +1,4 @@
-export type Plan = 'Essential' | 'Professional' | 'Enterprise' | 'MSSP'
+export type Plan = 'Eval' | 'Pilot' | 'Essential' | 'Professional' | 'Enterprise' | 'MSSP'
 export type Risk = 'ok' | 'watch' | 'risk'
 
 export interface Org {
